@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .api import WikiClient, WikiApiConfig, WikiAuth
 from .discord import WebhookClient, Event
+from .emoji import Emoji
 from .rss import fetch_items
 from .state import (
     State, load_state, save_state,
@@ -179,13 +180,13 @@ def _check_page_data(
         else page_name
     )
 
-    page_event_title = f"【{page_title}】 が更新されました。"
+    page_event_title = f"{Emoji.update} 【{page_title}】 が更新されました。"
 
     is_page_first_run = f"content_{page_name}" not in state.content_hashes
 
     if is_page_first_run:
         return Event(
-            title=f"✅️ 【{page_title}】 の通知が設定されました。",
+            title=f"{Emoji.initial} 【{page_title}】 の通知が設定されました。",
             url=page_url,
             page_name=page_name,
             date=page_date,
@@ -283,7 +284,7 @@ def run(cfg: Config) -> int:
         return 0
 
     client = WebhookClient(cfg.discord_webhook_url)
-    client.send_events(events_to_send, header="🆕 更新通知")
+    client.send_events(events_to_send, header=f"{Emoji.new} 更新通知")
 
     updated_seen = state.seen.copy()
     for event in events_to_send:
