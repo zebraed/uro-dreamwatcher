@@ -188,6 +188,7 @@ def _check_page_data(
             title=f"✅️ 【{page_title}】 の通知が設定されました。",
             url=page_url,
             page_name=page_name,
+            date=page_date,
             is_initial=True
         )
 
