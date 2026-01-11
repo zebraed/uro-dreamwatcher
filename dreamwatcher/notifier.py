@@ -179,7 +179,7 @@ def _check_page_data(
         else page_name
     )
 
-    page_event_title = f'"{page_title}" ページが更新されました。'
+    page_event_title = f"【{page_title}】 が更新されました。"
 
     if page_key not in state.seen:
         return Event(
