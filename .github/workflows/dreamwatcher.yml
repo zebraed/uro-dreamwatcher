@@ -49,14 +49,17 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
 
+          if git rev-parse --verify state >/dev/null 2>&1; then
+            # state branch exists, compare with its previous version
+            if git diff --quiet state -- state.json; then
+              echo "No changes to state.json, skipping commit"
+              exit 0
+            fi
+          fi
+
           git checkout -B state
           git add state.json
-
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "Update state.json"
-            git push origin state --force
-          fi
+          git commit -m "Update state.json"
+          git push origin state --force
 
           git checkout main
