@@ -14,8 +14,6 @@ from .state import (
 )
 from .types import SecretStr
 
-HEADER_TEXT = "🆕 更新通知"
-
 
 @dataclass(frozen=True)
 class Config:
@@ -251,7 +249,7 @@ def run(cfg: Config) -> int:
         return 0
 
     client = WebhookClient(cfg.discord_webhook_url)
-    client.send_events(events_to_send, header=HEADER_TEXT)
+    client.send_events(events_to_send, header="🆕 更新通知")
 
     updated_seen = state.seen.copy()
     for event in events_to_send:
