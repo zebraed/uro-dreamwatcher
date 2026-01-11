@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -227,18 +228,15 @@ def run(cfg: Config) -> int:
     client.send_events(events_to_send, header=HEADER_TEXT)
 
     updated_seen = state.seen.copy()
-    latest_date = state.updated_at
     for event in events_to_send:
         event_date = event.date
         updated_seen[normalize_link(event.url)] = event_date
-        if event_date and (not latest_date or event_date > latest_date):
-            latest_date = event_date
 
     prune_state(updated_seen, max_items=5000)
 
     updated_state = State(
         seen=updated_seen,
-        updated_at=latest_date,
+        updated_at=datetime.now(timezone.utc).isoformat(),
         content_hashes=state.content_hashes.copy()
     )
 
