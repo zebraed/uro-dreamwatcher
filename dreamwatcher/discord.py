@@ -64,7 +64,7 @@ class WebhookClient:
             if header and item == items[0]:
                 msg_parts.append(header)
 
-            msg_parts.append(f"**【{item.title}】**")
+            msg_parts.append(f"**{item.title}**")
 
             if item.date:
                 formatted_date = _format_date(item.date)
