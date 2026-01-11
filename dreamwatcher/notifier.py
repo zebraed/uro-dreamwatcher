@@ -215,6 +215,39 @@ def _check_page_data(
     return None
 
 
+def _clean_monitored_state(
+    seen: dict[str, str],
+    content_hashes: dict[str, str],
+    cfg: Config
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Remove pages that are no longer being monitored from state.
+
+    Args:
+        seen: Current seen items.
+        content_hashes: Current content hashes.
+        cfg: Configuration object.
+
+    Returns:
+        Tuple of (cleaned_seen, cleaned_hashes)
+    """
+    monitored_page_keys = {
+        normalize_link(f"page/{page_name}")
+        for page_name in cfg.page_names
+    }
+
+    cleaned_seen = {
+        k: v for k, v in seen.items()
+        if k in monitored_page_keys or not k.startswith("page/")
+    }
+
+    cleaned_hashes = {
+        k: v for k, v in content_hashes.items()
+        if any(k == f"content_{page_name}" for page_name in cfg.page_names)
+    }
+
+    return cleaned_seen, cleaned_hashes
+
+
 def run(cfg: Config) -> int:
     """Run the notifier."""
     state = load_state(cfg.state_path)
@@ -258,12 +291,18 @@ def run(cfg: Config) -> int:
         page_key = normalize_link(f"page/{event.page_name}")
         updated_seen[page_key] = event_date
 
+    updated_seen, updated_hashes = _clean_monitored_state(
+        updated_seen,
+        state.content_hashes,
+        cfg
+    )
+
     prune_state(updated_seen, max_items=5000)
 
     updated_state = State(
         seen=updated_seen,
         updated_at=datetime.now(timezone(timedelta(hours=9))).isoformat(),
-        content_hashes=state.content_hashes.copy()
+        content_hashes=updated_hashes
     )
 
     save_state(cfg.state_path, updated_state)
