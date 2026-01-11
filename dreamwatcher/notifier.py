@@ -76,7 +76,6 @@ def filter_links(_item, _state: State, _mode: str):
     Returns:
         bool: True if the item should be included, False otherwise.
     """
-    # Simple filtering: include all items by default
     return True
 
 
@@ -124,8 +123,15 @@ def get_specific_pages_updates(cfg: Config, state: State) -> list[Event]:
             try:
                 page_data = future.result(timeout=10)
                 event = _check_page_data(page_name, page_data, state, cfg)
+                page_content = page_data.get("source")
+                content_key = f"content_{page_name}"
+
+                if page_content:
+                    state.content_hashes[content_key] = get_content_hash(
+                        page_content
+                    )
+
                 if event:
-                    page_content = page_data.get("source")
                     diff_preview = get_content_diff_preview(
                         page_name,
                         page_content,
@@ -139,10 +145,6 @@ def get_specific_pages_updates(cfg: Config, state: State) -> list[Event]:
                         diff_preview=diff_preview
                     )
                     events.append(event_with_diff)
-                    content_key = f"content_{page_name}"
-                    state.content_hashes[content_key] = get_content_hash(
-                        page_content
-                    )
             except (OSError, ValueError, TimeoutError) as e:
                 print(f"Error getting page '{page_name}': {e}")
 
@@ -180,6 +182,16 @@ def _check_page_data(
     )
 
     page_event_title = f"【{page_title}】 が更新されました。"
+
+    is_page_first_run = f"content_{page_name}" not in state.content_hashes
+
+    if is_page_first_run:
+        return Event(
+            title=f"✅️ 【{page_title}】 の通知が設定されました。",
+            url=page_url,
+            page_name=page_name,
+            is_initial=True
+        )
 
     if page_key not in state.seen:
         return Event(

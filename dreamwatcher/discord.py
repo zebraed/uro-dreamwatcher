@@ -24,6 +24,7 @@ class Event:
     page_name: str
     date: Optional[str] = None
     diff_preview: Optional[str] = None
+    is_initial: bool = False
 
 
 class WebhookClient:
@@ -66,13 +67,13 @@ class WebhookClient:
 
             msg_parts.append(f"**{item.title}**")
 
-            if item.date:
+            if item.date and not item.is_initial:
                 formatted_date = _format_date(item.date)
                 msg_parts.append(f"🕐 {formatted_date}")
 
             msg_parts.append(f"🔗 <{item.url}>")
 
-            if item.diff_preview:
+            if item.diff_preview and not item.is_initial:
                 msg_parts.append(f"📝 {item.diff_preview} ...\n")
 
             msg_parts.append("━" * 40)
