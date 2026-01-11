@@ -64,6 +64,11 @@ class WebhookClient:
                 self._url, json=payload, timeout=self._timeout
             )
             resp.raise_for_status()
-            responses.append(resp.json())
+
+            # Discord API may return 204 No Content
+            try:
+                responses.append(resp.json())
+            except requests.exceptions.JSONDecodeError:
+                responses.append({"status": "ok"})
 
         return responses
