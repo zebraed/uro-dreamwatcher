@@ -21,6 +21,7 @@ def _format_date(iso_date_str: Optional[str]) -> str:
 class Event:
     title: str
     url: str
+    page_name: str
     date: Optional[str] = None
     diff_preview: Optional[str] = None
 

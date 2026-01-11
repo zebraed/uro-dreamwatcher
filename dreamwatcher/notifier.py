@@ -134,6 +134,7 @@ def get_specific_pages_updates(cfg: Config, state: State) -> list[Event]:
                     event_with_diff = Event(
                         title=event.title,
                         url=event.url,
+                        page_name=event.page_name,
                         date=event.date,
                         diff_preview=diff_preview
                     )
@@ -184,6 +185,7 @@ def _check_page_data(
         return Event(
             title=page_event_title,
             url=page_url,
+            page_name=page_name,
             date=page_date
         )
 
@@ -195,6 +197,7 @@ def _check_page_data(
             return Event(
                 title=page_event_title,
                 url=page_url,
+                page_name=page_name,
                 date=page_date
             )
 
@@ -224,6 +227,7 @@ def run(cfg: Config) -> int:
         events_to_send.extend([
             Event(title=item.title,
                   url=item.link,
+                  page_name=item.link,
                   date=item.date)
             for item in new_items
         ])
@@ -240,7 +244,8 @@ def run(cfg: Config) -> int:
     updated_seen = state.seen.copy()
     for event in events_to_send:
         event_date = event.date
-        updated_seen[normalize_link(event.url)] = event_date
+        page_key = normalize_link(f"page/{event.page_name}")
+        updated_seen[page_key] = event_date
 
     prune_state(updated_seen, max_items=5000)
 
