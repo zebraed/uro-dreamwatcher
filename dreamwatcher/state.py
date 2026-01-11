@@ -137,7 +137,7 @@ def get_content_diff_preview(
     page_name: str,
     current_content: Optional[str],
     state: State,
-    max_chars: int = 45
+    max_chars: int = 80
 ) -> Optional[str]:
     """
     Get preview of changed content (first N characters).
