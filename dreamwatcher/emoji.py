@@ -3,7 +3,7 @@
 class Emoji:
     new = "🆕"
     update = "🔔"
-    initial = ":name:JimboOK:"
+    initial = "<:name:JimboOK:>"
     contents = "📝"
     date = "🕐"
     link = "🔗"
