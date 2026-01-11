@@ -42,6 +42,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "chore: Update state.json"
-            git push
+            git commit --amend -m "chore: Update state.json" --no-edit
+            git push --force-with-lease
           fi
