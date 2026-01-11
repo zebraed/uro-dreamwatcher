@@ -1,0 +1,31 @@
+name: Dreamwatcher
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Dreamwatcher
+        env:
+          WIKIWIKI_ID: ${{ secrets.WIKIWIKI_ID }}
+          WIKIWIKI_API_KEY_ID: ${{ secrets.WIKIWIKI_API_KEY_ID }}
+          WIKIWIKI_API_SECRET: ${{ secrets.WIKIWIKI_API_SECRET }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          WIKIWIKI_PAGE_NAMES: ${{ vars.WIKIWIKI_PAGE_NAMES }}
+          STATE_PATH: ${{ vars.STATE_PATH }}
+        run: python -m dreamwatcher.main
