@@ -13,7 +13,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout main branch
+        uses: actions/checkout@v3
+
+      - name: Fetch state.json from state branch
+        run: |
+          git fetch origin state:state --force || true
+          if git rev-parse --verify state >/dev/null 2>&1; then
+            git show state:state.json > state.json || echo '{"seen": {}, "updated_at": null, "content_hashes": {}}' > state.json
+          else
+            echo '{"seen": {}, "updated_at": null, "content_hashes": {}}' > state.json
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -34,14 +44,19 @@ jobs:
           STATE_PATH: ${{ vars.STATE_PATH }}
         run: python -m dreamwatcher.main
 
-      - name: Commit state changes
+      - name: Push state.json to state branch
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -B state
           git add state.json
-          if git diff --staged --quiet; then
+
+          if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            git commit --amend -m "chore: Update state.json" --no-edit
-            git push --force-with-lease
+            git commit -m "Update state.json"
+            git push origin state --force
           fi
+
+          git checkout main
