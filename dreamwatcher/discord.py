@@ -1,9 +1,20 @@
 # -*- coding: utf-8 -*-
 from dataclasses import dataclass
 from typing import Iterable, Optional
+from datetime import datetime
 import requests
 
 from .types import SecretStr
+
+
+def _format_date(iso_date_str: Optional[str]) -> str:
+    if not iso_date_str:
+        return ""
+    try:
+        dt = datetime.fromisoformat(iso_date_str)
+        return dt.strftime("%Y年%-m月%-d日 %H時%M分")
+    except (ValueError, AttributeError):
+        return iso_date_str
 
 
 @dataclass(frozen=True)
@@ -55,12 +66,13 @@ class WebhookClient:
             msg_parts.append(f"**【{item.title}】**")
 
             if item.date:
-                msg_parts.append(f"🕐 {item.date}")
+                formatted_date = _format_date(item.date)
+                msg_parts.append(f"🕐 {formatted_date}")
 
-            msg_parts.append(f"🔗 {item.url}")
+            msg_parts.append(f"🔗 <{item.url}>")
 
             if item.diff_preview:
-                msg_parts.append(f"📝 {item.diff_preview} ...\n```")
+                msg_parts.append(f"📝 {item.diff_preview} ...\n")
 
             msg_parts.append("━" * 40)
 

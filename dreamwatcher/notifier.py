@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -14,7 +14,7 @@ from .state import (
 )
 from .types import SecretStr
 
-HEADER_TEXT = "🆕 新規投稿がありました。"
+HEADER_TEXT = "🆕 更新通知"
 
 
 @dataclass(frozen=True)
@@ -32,6 +32,7 @@ class Config:
         mode: The mode of the notifier.
         rss_url: The URL of the RSS feed.
         page_names: List of specific page names to monitor.
+        wiki_url: The URL of the wiki.
     """
     source: str
     wiki_id: str
@@ -42,6 +43,7 @@ class Config:
     mode: str = "all"
     rss_url: str = ""
     page_names: list[str] = field(default_factory=list)
+    wiki_url: str = ""
 
     def __repr__(self) -> str:
         return "<Config: hidden>"
@@ -121,7 +123,7 @@ def get_specific_pages_updates(cfg: Config, state: State) -> list[Event]:
             page_name = futures[future]
             try:
                 page_data = future.result(timeout=10)
-                event = _check_page_data(page_name, page_data, state)
+                event = _check_page_data(page_name, page_data, state, cfg)
                 if event:
                     page_content = page_data.get("source")
                     diff_preview = get_content_diff_preview(
@@ -149,7 +151,8 @@ def get_specific_pages_updates(cfg: Config, state: State) -> list[Event]:
 def _check_page_data(
     page_name: str,
     page_data: dict,
-    state: State
+    state: State,
+    cfg: Config
 ) -> Optional[Event]:
     """
     Process page data and check if it has been updated.
@@ -158,15 +161,22 @@ def _check_page_data(
         page_name: The name of the page.
         page_data: The page data from the API.
         state: Current state object.
+        cfg: Configuration object.
 
     Returns:
         Optional[Event]: Event if page is new or updated, None otherwise.
     """
-    page_url = f"page/{page_name}"
-    page_key = normalize_link(page_url)
+    page_path = f"page/{page_name}"
+    page_key = normalize_link(page_path)
     page_title = page_data.get("page", page_name)
     page_date = page_data.get("timestamp")
     page_content = page_data.get("source")
+
+    page_url = (
+        f"{cfg.wiki_url.rstrip('/')}/?{page_name}"
+        if cfg.wiki_url
+        else page_name
+    )
 
     page_event_title = f'"{page_title}" ページが更新されました。'
 
@@ -236,7 +246,7 @@ def run(cfg: Config) -> int:
 
     updated_state = State(
         seen=updated_seen,
-        updated_at=datetime.now(timezone.utc).isoformat(),
+        updated_at=datetime.now(timezone(timedelta(hours=9))).isoformat(),
         content_hashes=state.content_hashes.copy()
     )
 

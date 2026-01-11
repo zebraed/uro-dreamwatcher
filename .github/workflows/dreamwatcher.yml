@@ -26,6 +26,7 @@ jobs:
       - name: Run Dreamwatcher
         env:
           WIKIWIKI_ID: ${{ secrets.WIKIWIKI_ID }}
+          WIKIWIKI_URL_BASE: ${{ vars.WIKIWIKI_URL_BASE }}
           WIKIWIKI_API_KEY_ID: ${{ secrets.WIKIWIKI_API_KEY_ID }}
           WIKIWIKI_API_SECRET: ${{ secrets.WIKIWIKI_API_SECRET }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
