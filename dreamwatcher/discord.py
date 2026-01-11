@@ -47,16 +47,27 @@ class WebhookClient:
         responses = []
 
         for item in items:
-            date = f"({item.date})" if item.date else ""
-            diff_text = (
-                f"\n{item.diff_preview} ..."
-                if item.diff_preview
-                else ""
-            )
-            msg = f"{item.title} {date}\n<{item.url}>{diff_text}"
+            msg_parts = []
+
+            if header and item == items[0]:
+                msg_parts.append(header)
+
+            msg_parts.append(f"**【{item.title}】**")
+
+            if item.date:
+                msg_parts.append(f"🕐 {item.date}")
+
+            msg_parts.append(f"🔗 {item.url}")
+
+            if item.diff_preview:
+                msg_parts.append(f"📝 {item.diff_preview} ...\n```")
+
+            msg_parts.append("━" * 40)
+
+            msg = "\n".join(msg_parts)
 
             payload = {
-                "content": f"{header}\n{msg}" if header else "",
+                "content": msg,
                 "allowed_mentions": {"parse": []},
             }
 

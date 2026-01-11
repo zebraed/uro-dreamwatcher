@@ -14,7 +14,7 @@ from .state import (
 )
 from .types import SecretStr
 
-HEADER_TEXT = "新規投稿がありました。"
+HEADER_TEXT = "🆕 新規投稿がありました。"
 
 
 @dataclass(frozen=True)
