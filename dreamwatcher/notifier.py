@@ -11,7 +11,8 @@ from .emoji import Emoji
 from .rss import fetch_items
 from .state import (
     State, load_state, save_state,
-    has_page_content_changed, get_content_hash, get_content_diff_preview
+    has_page_content_changed, get_content_hash, get_content_diff_preview,
+    load_snapshots, save_snapshots, update_snapshot
 )
 from .types import SecretStr
 
@@ -32,6 +33,7 @@ class Config:
         rss_url: The URL of the RSS feed.
         page_names: List of specific page names to monitor.
         wiki_url: The URL of the wiki.
+        snapshots_dir: The directory to store page snapshots.
     """
     source: str
     wiki_id: str
@@ -43,6 +45,7 @@ class Config:
     rss_url: str = ""
     page_names: list[str] = field(default_factory=list)
     wiki_url: str = ""
+    snapshots_dir: Path = field(default_factory=lambda: Path(".snapshots"))
 
     def __repr__(self) -> str:
         return "<Config: hidden>"
@@ -109,7 +112,10 @@ def get_specific_pages_updates(cfg: Config, state: State) -> list[Event]:
     auth = WikiAuth(api_key_id=cfg.api_key_id, secret=cfg.api_secret)
     client = WikiClient(api_cfg, auth)
 
+    cfg.snapshots_dir.mkdir(parents=True, exist_ok=True)
+    snapshots = load_snapshots(cfg.snapshots_dir / "snapshots.json")
     events = []
+    updated_snapshots = {}
 
     with ThreadPoolExecutor(max_workers=5) as executor:
         futures = {
@@ -123,19 +129,26 @@ def get_specific_pages_updates(cfg: Config, state: State) -> list[Event]:
                 page_data = future.result(timeout=10)
                 event = _check_page_data(page_name, page_data, state, cfg)
                 page_content = page_data.get("source")
+                page_date = page_data.get("timestamp")
                 content_key = f"content_{page_name}"
 
                 if page_content:
-                    state.content_hashes[content_key] = get_content_hash(
-                        page_content
-                    )
+                    old_hash = state.content_hashes.get(content_key)
+                    new_hash = get_content_hash(page_content)
+                    state.content_hashes[content_key] = new_hash
+                    if old_hash != new_hash:
+                        timestamp = page_date
+                        snapshot = update_snapshot(
+                            page_name=page_name,
+                            current_content=page_content,
+                            snapshots=snapshots,
+                            timestamp=timestamp
+                        )
+                        updated_snapshots[page_name] = snapshot
 
                 if event:
-                    diff_preview = get_content_diff_preview(
-                        page_name,
-                        page_content,
-                        state
-                    )
+                    snapshot = updated_snapshots.get(page_name)
+                    diff_preview = get_content_diff_preview(snapshot)
                     event_with_diff = Event(
                         title=event.title,
                         url=event.url,
@@ -146,6 +159,10 @@ def get_specific_pages_updates(cfg: Config, state: State) -> list[Event]:
                     events.append(event_with_diff)
             except (OSError, ValueError, TimeoutError) as e:
                 print(f"Error getting page '{page_name}': {e}")
+
+    if updated_snapshots:
+        snapshots.update(updated_snapshots)
+        save_snapshots(cfg.snapshots_dir / "snapshots.json", snapshots)
 
     return events
 

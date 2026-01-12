@@ -16,13 +16,17 @@ jobs:
       - name: Checkout main branch
         uses: actions/checkout@v3
 
-      - name: Fetch state.json from state branch
+      - name: Fetch state.json and snapshots.json from state branch
         run: |
           git fetch origin state:state --force || true
           if git rev-parse --verify state >/dev/null 2>&1; then
             git show state:state.json > state.json || echo '{"seen": {}, "updated_at": null, "content_hashes": {}}' > state.json
+            mkdir -p .snapshots
+            git show state:.snapshots/snapshots.json > .snapshots/snapshots.json || echo '{}' > .snapshots/snapshots.json
           else
             echo '{"seen": {}, "updated_at": null, "content_hashes": {}}' > state.json
+            mkdir -p .snapshots
+            echo '{}' > .snapshots/snapshots.json
           fi
 
       - name: Set up Python
@@ -44,25 +48,39 @@ jobs:
           STATE_PATH: ${{ vars.STATE_PATH }}
         run: python -m dreamwatcher.main
 
-      - name: Push state.json to state branch
+      - name: Push state.json and snapshots.json to state branch
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
 
+          has_state_changes=0
+          has_snapshot_changes=0
+
           if git rev-parse --verify state >/dev/null 2>&1; then
             if git diff state -- state.json | grep -q .; then
-              git checkout -B state
-              git add state.json
-              git commit -m "Update state.json"
-              git push origin state --force
-            else
-              echo "No changes to state.json, skipping commit"
+              has_state_changes=1
+            fi
+            if git diff state -- .snapshots/snapshots.json | grep -q .; then
+              has_snapshot_changes=1
             fi
           else
+            has_state_changes=1
+            has_snapshot_changes=1
+          fi
+
+          if [ "$has_state_changes" -eq 1 ] || [ "$has_snapshot_changes" -eq 1 ]; then
             git checkout -B state
-            git add state.json
-            git commit -m "Update state.json"
+            git add state.json .snapshots/snapshots.json
+            if [ "$has_state_changes" -eq 1 ] && [ "$has_snapshot_changes" -eq 1 ]; then
+              git commit -m "Update state.json and snapshots.json"
+            elif [ "$has_state_changes" -eq 1 ]; then
+              git commit -m "Update state.json"
+            else
+              git commit -m "Update snapshots.json"
+            fi
             git push origin state --force
+          else
+            echo "No changes to state.json or snapshots.json, skipping commit"
           fi
 
           git checkout main
