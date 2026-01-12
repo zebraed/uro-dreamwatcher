@@ -193,14 +193,6 @@ def _check_page_data(
             is_initial=True
         )
 
-    if page_key not in state.seen:
-        return Event(
-            title=page_event_title,
-            url=page_url,
-            page_name=page_name,
-            date=page_date
-        )
-
     stored_date = state.seen.get(page_key)
     if page_date and stored_date != page_date:
         if page_content and has_page_content_changed(
