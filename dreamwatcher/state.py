@@ -54,7 +54,7 @@ def load_state(path: Path) -> State:
             content_hashes=content_hashes
         )
     except (OSError, ValueError, json.JSONDecodeError) as e:
-        print(f"Error loading state: {e}")
+        print(f"Error loading state from {path}: {e}")
         return State(seen={}, updated_at=None, content_hashes={})
 
 
