@@ -50,16 +50,19 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
 
           if git rev-parse --verify state >/dev/null 2>&1; then
-            # state branch exists, compare with its previous version
-            if git diff --quiet state -- state.json; then
+            if git diff state -- state.json | grep -q .; then
+              git checkout -B state
+              git add state.json
+              git commit -m "Update state.json"
+              git push origin state --force
+            else
               echo "No changes to state.json, skipping commit"
-              exit 0
             fi
+          else
+            git checkout -B state
+            git add state.json
+            git commit -m "Update state.json"
+            git push origin state --force
           fi
-
-          git checkout -B state
-          git add state.json
-          git commit -m "Update state.json"
-          git push origin state --force
 
           git checkout main
