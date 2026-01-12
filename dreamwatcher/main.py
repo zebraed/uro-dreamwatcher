@@ -24,8 +24,9 @@ def main():
     api_key_id = SecretStr(os.environ.get("WIKIWIKI_API_KEY_ID", "").strip())
     api_secret = SecretStr(os.environ.get("WIKIWIKI_API_SECRET", "").strip())
     rss_url = os.environ.get("WIKIWIKI_RSS_URL", "").strip()
-    webhook = SecretStr(os.environ.get("DISCORD_WEBHOOK_URL", "").strip())
+    webhook_url = SecretStr(os.environ.get("DISCORD_WEBHOOK_URL", "").strip())
     state_path = os.environ.get("STATE_PATH", "state.json").strip()
+    snapshots_dir = os.environ.get("SNAPSHOTS_DIR_PATH", ".snapshots").strip()
     page_names_str = os.environ.get("WIKIWIKI_PAGE_NAMES", "").strip()
 
     if not wiki_id:
@@ -40,7 +41,7 @@ def main():
     if not api_secret:
         print("Error: WIKIWIKI_API_SECRET is not set")
         return 2
-    if not webhook:
+    if not webhook_url:
         print("Error: DISCORD_WEBHOOK_URL is not set")
         return 2
 
@@ -56,11 +57,13 @@ def main():
         wiki_id=wiki_id,
         api_key_id=api_key_id,
         api_secret=api_secret,
-        discord_webhook_url=webhook,
+        discord_webhook_url=webhook_url,
         state_path=Path(state_path),
         rss_url=rss_url,
         page_names=page_names,
-        wiki_url=wiki_url)
+        wiki_url=wiki_url,
+        snapshots_dir=Path(snapshots_dir)
+        )
 
     return run(cfg)
 
