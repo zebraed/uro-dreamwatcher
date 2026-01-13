@@ -11,8 +11,11 @@ from .emoji import Emoji
 from .rss import fetch_items
 from .state import (
     State, load_state, save_state,
-    has_page_content_changed, get_content_hash, get_content_diff_preview,
-    load_snapshots, save_snapshots, update_snapshot
+    has_page_content_changed, get_content_hash
+)
+from .snapshot import (
+    load_snapshots, save_snapshots, update_snapshot,
+    get_content_diff_preview
 )
 from .types import SecretStr
 
@@ -295,7 +298,7 @@ def run(cfg: Config) -> int:
         return 0
 
     client = WebhookClient(cfg.discord_webhook_url)
-    client.send_events(events_to_send, header=f"{Emoji.new} 更新通知")
+    client.send_events(events_to_send, header=f"{Emoji.new} 新着通知")
 
     updated_seen = state.seen.copy()
     for event in events_to_send:
