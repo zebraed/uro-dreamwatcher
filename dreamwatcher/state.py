@@ -167,11 +167,16 @@ def get_diff(previous_content, current_content):
     diff = difflib.unified_diff(
         previous_lines,
         current_lines,
-        fromfile="previous_content",
-        tofile="current_content",
         lineterm=""
     )
-    return "\n".join(diff)
+    # Filter lines
+    added_lines = [
+        line[1:] for line in diff
+        if line.startswith('+') and not line.startswith('+++')
+        and not line.lstrip('+').strip().startswith('//')
+    ]
+
+    return "\n".join(added_lines) if added_lines else None
 
 
 def load_snapshots(path: Path) -> dict[str, PageSnapshot]:

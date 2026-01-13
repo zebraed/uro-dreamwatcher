@@ -149,14 +149,16 @@ def get_specific_pages_updates(cfg: Config, state: State) -> list[Event]:
                 if event:
                     snapshot = updated_snapshots.get(page_name)
                     diff_preview = get_content_diff_preview(snapshot)
-                    event_with_diff = Event(
-                        title=event.title,
-                        url=event.url,
-                        page_name=event.page_name,
-                        date=event.date,
-                        diff_preview=diff_preview
-                    )
-                    events.append(event_with_diff)
+                    if diff_preview or event.is_initial:
+                        event_with_diff = Event(
+                            title=event.title,
+                            url=event.url,
+                            page_name=event.page_name,
+                            date=event.date,
+                            diff_preview=diff_preview,
+                            is_initial=event.is_initial
+                        )
+                        events.append(event_with_diff)
             except (OSError, ValueError, TimeoutError) as e:
                 print(f"Error getting page '{page_name}': {e}")
 
