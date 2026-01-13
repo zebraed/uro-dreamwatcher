@@ -8,7 +8,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from .api import WikiClient, WikiApiConfig, WikiAuth
 from .discord import WebhookClient, Event
 from .emoji import Emoji
-from .rss import fetch_items
 from .state import (
     State, load_state, save_state,
     has_page_content_changed, get_content_hash
@@ -33,7 +32,7 @@ class Config:
         discord_webhook_url: The URL of the Discord webhook.
         state_path: The path to the state file.
         mode: The mode of the notifier.
-        rss_url: The URL of the RSS feed.
+        rss_url: The URL of the RSS feed. # Not implemented yet
         page_names: List of specific page names to monitor.
         wiki_url: The URL of the wiki.
         snapshots_dir: The directory to store page snapshots.
@@ -82,19 +81,6 @@ def filter_links(_item, _state: State, _mode: str):
         bool: True if the item should be included, False otherwise.
     """
     return True
-
-
-def collect_items(cfg: Config):
-    """Collect items from the source."""
-    if cfg.source == "rss":
-        return fetch_items(cfg.rss_url)
-    if cfg.source == "api":
-        api_cfg = WikiApiConfig(wiki_id=cfg.wiki_id)
-        auth = WikiAuth(api_key_id=cfg.api_key_id, secret=cfg.api_secret)
-        client = WikiClient(api_cfg, auth)
-        return client.list_pages()
-
-    raise ValueError(f"Unknown source: {cfg.source}")
 
 
 def get_specific_pages_updates(cfg: Config, state: State) -> list[Event]:
@@ -268,28 +254,6 @@ def run(cfg: Config) -> int:
     state = load_state(cfg.state_path)
 
     events_to_send = []
-
-    if cfg.source == "rss":
-        items = collect_items(cfg)
-        links = [
-            item for item in items
-            if filter_links(item, state, cfg.mode)
-        ]
-
-        new_items = []
-        for item in links:
-            key = normalize_link(item.link)
-            if key not in state.seen:
-                new_items.append(item)
-
-        new_items.sort(key=lambda item: item.date)
-        events_to_send.extend([
-            Event(title=item.title,
-                  url=item.link,
-                  page_name=item.link,
-                  date=item.date)
-            for item in new_items
-        ])
 
     page_events = get_specific_pages_updates(cfg, state)
     events_to_send.extend(page_events)
