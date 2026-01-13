@@ -4,7 +4,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from .notifier import Config, run
+from .watcher import Config, run
 from .types import SecretStr
 
 
