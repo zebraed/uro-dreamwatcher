@@ -35,7 +35,7 @@ def get_content_diff_preview(
     diff_text = snapshot.diff
     if len(diff_text) > max_chars:
         preview = diff_text[:max_chars].strip()
-        return preview + " ..."
+        return preview
 
     return diff_text if diff_text.strip() else None
 
