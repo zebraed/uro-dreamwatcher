@@ -262,7 +262,7 @@ def run(cfg: Config) -> int:
         return 0
 
     client = WebhookClient(cfg.discord_webhook_url)
-    client.send_events(events_to_send, header=f"{Emoji.new} 新着通知")
+    client.send_events(events_to_send, header="")
 
     updated_seen = state.seen.copy()
     for event in events_to_send:

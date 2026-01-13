@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -13,6 +14,19 @@ class PageSnapshot:
     content: str
     timestamp: str
     diff: Optional[str] = None
+
+
+def _convert_links(text: str) -> str:
+    """
+    Convert wiki-style links to Discord markdown format.
+
+    Args:
+        text: Text with wiki-style links
+
+    Returns:
+        str: Text with Discord markdown links
+    """
+    return re.sub(r"\[\[([^\]]+)>([^\]]+)\]\]", r"[\1](\2)", text)
 
 
 def get_content_diff_preview(
@@ -33,11 +47,24 @@ def get_content_diff_preview(
         return None
 
     diff_text = snapshot.diff
-    if len(diff_text) > max_chars:
-        preview = diff_text[:max_chars].strip()
-        return preview
+    parts = re.split(r"(\[[^\]]+\]\([^\)]+\))", diff_text)
+    result = []
+    char_count = 0
+    for part in parts:
+        if re.match(r"^\[[^\]]+\]\([^\)]+\)$", part):
+            result.append(part)
+        else:
+            if char_count < max_chars:
+                remaining = max_chars - char_count
+                if len(part) > remaining:
+                    result.append(part[:remaining])
+                    char_count = max_chars
+                else:
+                    result.append(part)
+                    char_count += len(part)
 
-    return diff_text if diff_text.strip() else None
+    preview_text = "".join(result).strip()
+    return preview_text if preview_text else None
 
 
 def get_diff(previous_content, current_content):
