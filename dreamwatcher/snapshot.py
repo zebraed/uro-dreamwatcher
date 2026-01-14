@@ -16,6 +16,28 @@ class PageSnapshot:
     diff: Optional[str] = None
 
 
+def _filter_wiki_syntax(diff) -> list[str]:
+    """
+    Extract added lines from unified diff, filtering wiki syntax and comments.
+    """
+    result = []
+    for line in diff:
+        if not line.startswith('+'):
+            continue
+        # Remove prefix
+        content = line[1:]
+        filtered = re.sub(r"&\w+\{([^}]+)\};", r"\1", content)
+        # Skip comment lines
+        if filtered.lstrip().startswith('//'):
+            continue
+        # Skip diff header
+        if filtered.startswith('+'):
+            continue
+        result.append(filtered)
+
+    return result
+
+
 def _convert_links(text: str) -> str:
     """
     Convert wiki-style links to Discord markdown format.
@@ -46,7 +68,7 @@ def get_content_diff_preview(
     if not snapshot or not snapshot.diff:
         return None
 
-    diff_text = snapshot.diff
+    diff_text = _convert_links(snapshot.diff)
     parts = re.split(r"(\[[^\]]+\]\([^\)]+\))", diff_text)
     result = []
     char_count = 0
@@ -90,12 +112,7 @@ def get_diff(previous_content, current_content):
         current_lines,
         lineterm=""
     )
-    # Filter lines
-    added_lines = [
-        line[1:] for line in diff
-        if line.startswith('+') and not line.startswith('+++')
-        and not line.lstrip('+').strip().startswith('//')
-    ]
+    added_lines = _filter_wiki_syntax(diff)
 
     return "\n".join(added_lines) if added_lines else None
 
