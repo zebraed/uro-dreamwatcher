@@ -75,7 +75,7 @@ class WebhookClient:
             msg_parts.append(f"{Emoji.link} <{item.url}>")
 
             if item.diff_preview and not item.is_initial:
-                msg_parts.append(f"{Emoji.contents} {item.diff_preview} ...\n")
+                msg_parts.append(f"{Emoji.contents} {item.diff_preview} ...")
 
             msg_parts.append("━" * 40)
 
