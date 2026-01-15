@@ -22,7 +22,11 @@ def _filter_wiki_syntax(diff) -> list[str]:
     """
     result = []
     for line in diff:
+        # Skip diff header
         if not line.startswith('+'):
+            continue
+        # Skip comment lines
+        if filtered.lstrip().startswith('//'):
             continue
         # Remove prefix
         content = line[1:]
@@ -44,12 +48,6 @@ def _filter_wiki_syntax(diff) -> list[str]:
         filtered = re.sub(r"\{([^}]*)\}", r"\1", filtered)
         # line break
         filtered = re.sub(r"&br\(\)", "", filtered)
-        # Skip comment lines
-        if filtered.lstrip().startswith('//'):
-            continue
-        # Skip diff header
-        if filtered.startswith('+'):
-            continue
         result.append(filtered)
 
     return result
