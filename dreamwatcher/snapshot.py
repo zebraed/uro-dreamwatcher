@@ -26,7 +26,24 @@ def _filter_wiki_syntax(diff) -> list[str]:
             continue
         # Remove prefix
         content = line[1:]
-        filtered = re.sub(r"&\w+\{([^}]+)\};", r"\1", content)
+        # remove leading dash
+        content = content.lstrip('- ')
+        # new date
+        filtered = re.sub(r"&\w+([^;]*);", r"\1", content)
+        # color
+        filtered = re.sub(r"&color\([^)]*\)\{([^}]*)\};", r"\1", filtered)
+        # color form
+        filtered = re.sub(r"&color\([^)]*\)", "", filtered)
+        # size
+        filtered = re.sub(r"&size\([^)]*\)\{([^}]*)\};", r"\1", filtered)
+        # strikethrough
+        filtered = re.sub(r"%%[^%]*%%", "", filtered)
+        # underline
+        filtered = re.sub(r"%%%[^%]*%%%", "", filtered)
+        # braces: extract content from {...}
+        filtered = re.sub(r"\{([^}]*)\}", r"\1", filtered)
+        # line break
+        filtered = re.sub(r"&br\(\)", "", filtered)
         # Skip comment lines
         if filtered.lstrip().startswith('//'):
             continue
