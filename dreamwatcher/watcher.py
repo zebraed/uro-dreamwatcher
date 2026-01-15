@@ -22,7 +22,7 @@ from .types import SecretStr
 @dataclass(frozen=True)
 class Config:
     """
-    Configuration for the notifier.
+    Configuration for watcher.
 
     Attributes:
         source: The source of the items.
@@ -31,7 +31,7 @@ class Config:
         api_secret: The API secret.
         discord_webhook_url: The URL of the Discord webhook.
         state_path: The path to the state file.
-        mode: The mode of the notifier.
+        mode: The mode of watcher.
         rss_url: The URL of the RSS feed. # Not implemented yet
         page_names: List of specific page names to monitor.
         wiki_url: The URL of the wiki.
@@ -250,7 +250,7 @@ def _clean_monitored_state(
 
 
 def run(cfg: Config) -> int:
-    """Run the notifier."""
+    """Run watcher."""
     state = load_state(cfg.state_path)
 
     events_to_send = []

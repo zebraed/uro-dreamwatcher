@@ -51,6 +51,19 @@ def _convert_links(text: str) -> str:
     return re.sub(r"\[\[([^\]]+)>([^\]]+)\]\]", r"[\1](\2)", text)
 
 
+def _get_display_width(text: str) -> int:
+    """
+    Get display width of text.
+    """
+    width = 0
+    for char in text:
+        if ord(char) > 127:
+            width += 2
+        else:
+            width += 1
+    return width
+
+
 def get_content_diff_preview(
     snapshot: Optional["PageSnapshot"],
     max_chars: int = 80
@@ -78,12 +91,21 @@ def get_content_diff_preview(
         else:
             if char_count < max_chars:
                 remaining = max_chars - char_count
-                if len(part) > remaining:
-                    result.append(part[:remaining])
+                part_width = _get_display_width(part)
+                if part_width > remaining:
+                    truncated = ""
+                    current_width = 0
+                    for char in part:
+                        char_width = 2 if ord(char) > 127 else 1
+                        if current_width + char_width > remaining:
+                            break
+                        truncated += char
+                        current_width += char_width
+                    result.append(truncated)
                     char_count = max_chars
                 else:
                     result.append(part)
-                    char_count += len(part)
+                    char_count += part_width
 
     preview_text = "".join(result).strip()
     return preview_text if preview_text else None
