@@ -26,7 +26,7 @@ def _filter_wiki_syntax(diff) -> list[str]:
         if not line.startswith('+'):
             continue
         # Skip comment lines
-        if filtered.lstrip().startswith('//'):
+        if line.lstrip().startswith('//'):
             continue
         # Remove prefix
         content = line[1:]
