@@ -1,5 +1,15 @@
 {
-  "seen": {},
-  "updated_at": null,
-  "content_hashes": {}
+  "seen": {
+    "page/ゆめ２っきフォーラム": "2026-01-17T22:12:40+09:00",
+    "page/バグ一覧/コメントログ01": "2026-01-05T22:36:31+09:00",
+    "page/議論": "2026-01-07T09:26:54+09:00",
+    "page/FrontPage/最近の予定・更新一覧": "2026-01-17T19:18:29+09:00"
+  },
+  "updated_at": "2026-01-17T22:13:00.982658+09:00",
+  "content_hashes": {
+    "content_ゆめ２っきフォーラム": "851fb8cd44aeeffd3a2ba16073c10e7d",
+    "content_バグ一覧/コメントログ01": "0504ab4ae32202d3e821929f68486f0d",
+    "content_議論": "d32921a8bf44f4a515bf8ed83bef2668",
+    "content_FrontPage/最近の予定・更新一覧": "faf5e32868343c5a467dc506b96adb2d"
+  }
 }
