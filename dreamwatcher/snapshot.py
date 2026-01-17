@@ -99,7 +99,8 @@ def get_content_diff_preview(
         return None
 
     diff_text = _convert_links(snapshot.diff)
-    parts = re.split(r"(\[[^\]]+\]\([^\)]+\))", diff_text)
+    first_line = diff_text.split('\n')[0]
+    parts = re.split(r"(\[[^\]]+\]\([^\)]+\))", first_line)
     result = []
     char_count = 0
     for part in parts:
