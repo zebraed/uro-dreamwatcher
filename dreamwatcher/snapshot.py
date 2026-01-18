@@ -47,6 +47,10 @@ def _filter_wiki_syntax(diff) -> list[str]:
         filtered = re.sub(r"\{([^}]*)\}", r"\1", filtered)
         # line break
         filtered = re.sub(r"&br\(\)", "", filtered)
+        # leading *
+        filtered = re.sub(r"^\*+", "", filtered)
+        # anchor link
+        filtered = re.sub(r"\s*\[#[^\]]+\]", "", filtered)
         # Skip diff header
         if filtered.startswith('+'):
             continue
