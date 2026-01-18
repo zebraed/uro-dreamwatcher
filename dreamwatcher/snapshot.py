@@ -57,15 +57,18 @@ def _filter_wiki_syntax(diff) -> list[str]:
 
 def _convert_links(text: str) -> str:
     """
-    Convert wiki-style links to Discord markdown format.
+    Remove URLs from text.
 
     Args:
-        text: Text with wiki-style links
+        text: Text with wiki-style links and URLs
 
     Returns:
-        str: Text with Discord markdown links
+        str: Text with URLs removed
     """
-    return re.sub(r"\[\[([^\]]+)>([^\]]+)\]\]", r"[\1](\2)", text)
+    text = re.sub(r"\[\[([^\]]+)>([^\]]+)\]\]", r"\1", text)
+    text = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", text)
+    text = re.sub(r"https?://[^\s]+", "", text)
+    return text
 
 
 def _get_display_width(text: str) -> int:
