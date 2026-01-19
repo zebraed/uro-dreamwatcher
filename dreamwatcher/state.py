@@ -12,6 +12,7 @@ class State:
     seen: dict[str, str]
     updated_at: str
     content_hashes: dict[str, str] = field(default_factory=dict)
+    dynamic_monitored_pages: set[str] = field(default_factory=set)
 
 
 def load_state(path: Path) -> State:
@@ -23,13 +24,17 @@ def load_state(path: Path) -> State:
         State: The state object.
     """
     if not path.exists():
-        return State(seen={}, updated_at=None, content_hashes={})
+        return State(
+            seen={}, updated_at=None, content_hashes={},
+            dynamic_monitored_pages=set()
+        )
 
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         seen = data.get("seen", {})
         updated_at = data.get("updated_at", None)
         content_hashes = data.get("content_hashes", {})
+        dynamic_monitored_pages_list = data.get("dynamic_monitored_pages", [])
 
         if not isinstance(seen, dict):
             seen = {}
@@ -37,15 +42,21 @@ def load_state(path: Path) -> State:
             updated_at = None
         if not isinstance(content_hashes, dict):
             content_hashes = {}
+        if not isinstance(dynamic_monitored_pages_list, list):
+            dynamic_monitored_pages_list = []
 
         return State(
             seen=seen,
             updated_at=updated_at,
-            content_hashes=content_hashes
+            content_hashes=content_hashes,
+            dynamic_monitored_pages=set(dynamic_monitored_pages_list)
         )
     except (OSError, ValueError, json.JSONDecodeError) as e:
         print(f"Error loading state from {path}: {e}")
-        return State(seen={}, updated_at=None, content_hashes={})
+        return State(
+            seen={}, updated_at=None, content_hashes={},
+            dynamic_monitored_pages=set()
+        )
 
 
 def save_state(path: Path, state: State):
@@ -59,7 +70,8 @@ def save_state(path: Path, state: State):
     data = {
         "seen": state.seen,
         "updated_at": state.updated_at,
-        "content_hashes": state.content_hashes
+        "content_hashes": state.content_hashes,
+        "dynamic_monitored_pages": list(state.dynamic_monitored_pages)
     }
     path.write_text(
         json.dumps(data, ensure_ascii=False, indent=2),

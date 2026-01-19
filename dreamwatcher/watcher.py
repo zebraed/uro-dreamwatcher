@@ -38,6 +38,7 @@ class Config:
         wiki_url: The URL of the wiki.
         snapshots_dir: The directory to store page snapshots.
         monitor_recent_created: Whether to monitor the RecentCreated page.
+        auto_track_pattern: Pattern to auto-track pages from RecentCreated.
     """
     source: str
     wiki_id: str
@@ -51,6 +52,7 @@ class Config:
     wiki_url: str = ""
     snapshots_dir: Path = field(default_factory=lambda: Path(".snapshots"))
     monitor_recent_created: bool = True
+    auto_track_pattern: str = ""
 
     def __repr__(self) -> str:
         return "<Config: hidden>"
@@ -106,6 +108,29 @@ def _extract_page_names_from_diff(diff_text: str) -> list[str]:
     return page_names
 
 
+def _is_page_closed(page_content: str) -> bool:
+    """
+    Check if page is closed.
+
+    Args:
+        page_content: Page content to check.
+
+    Returns:
+        bool: True if page is closed, False otherwise.
+    """
+    if not page_content:
+        return False
+    lines = page_content.split('\n')
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith('* 【終了】') or stripped.startswith('*【終了】'):
+            return True
+        break
+    return False
+
+
 def _create_wiki_client(cfg: Config) -> WikiClient:
     """
     Create a WikiClient instance.
@@ -135,7 +160,11 @@ def get_specific_pages_updates(
     Returns:
         list[Event]: List of events for updated pages.
     """
-    if not cfg.page_names:
+    all_monitored_pages = list(cfg.page_names) + list(
+        state.dynamic_monitored_pages
+    )
+
+    if not all_monitored_pages:
         return []
 
     cfg.snapshots_dir.mkdir(parents=True, exist_ok=True)
@@ -146,7 +175,7 @@ def get_specific_pages_updates(
     with ThreadPoolExecutor(max_workers=5) as executor:
         futures = {
             executor.submit(client.get_page, page_name): page_name
-            for page_name in cfg.page_names
+            for page_name in all_monitored_pages
         }
 
         for future in as_completed(futures):
@@ -251,6 +280,30 @@ def get_recent_created_updates(
                         snapshot.diff
                     )
                     for created_page_name in page_names:
+                        if (cfg.auto_track_pattern and
+                                created_page_name.startswith(
+                                    cfg.auto_track_pattern
+                                )):
+                            try:
+                                page_data_for_check = client.get_page(
+                                    created_page_name
+                                )
+                                page_content_for_check = (
+                                    page_data_for_check.get("source")
+                                )
+                                if page_content_for_check:
+                                    if not _is_page_closed(
+                                        page_content_for_check
+                                    ):
+                                        state.dynamic_monitored_pages.add(
+                                            created_page_name
+                                        )
+                            except (OSError, ValueError, TimeoutError) as e:
+                                print(
+                                    f"Error checking page "
+                                    f"'{created_page_name}': {e}"
+                                )
+
                         created_event = Event(
                             title=(
                                 f"{Emoji.new} 【{created_page_name}】"
@@ -343,7 +396,8 @@ def _check_page_data(
 def _clean_monitored_state(
     seen: dict[str, str],
     content_hashes: dict[str, str],
-    cfg: Config
+    cfg: Config,
+    state: State
 ) -> tuple[dict[str, str], dict[str, str]]:
     """Remove pages that are no longer being monitored from state.
 
@@ -351,6 +405,7 @@ def _clean_monitored_state(
         seen: Current seen items.
         content_hashes: Current content hashes.
         cfg: Configuration object.
+        state: Current state object.
 
     Returns:
         Tuple of (cleaned_seen, cleaned_hashes)
@@ -359,6 +414,10 @@ def _clean_monitored_state(
         normalize_link(f"page/{page_name}")
         for page_name in cfg.page_names
     }
+
+    # Add dynamic monitored pages
+    for page_name in state.dynamic_monitored_pages:
+        monitored_page_keys.add(normalize_link(f"page/{page_name}"))
 
     if cfg.monitor_recent_created:
         monitored_page_keys.add(normalize_link("page/RecentCreated"))
@@ -371,6 +430,9 @@ def _clean_monitored_state(
     monitored_content_keys = {
         f"content_{page_name}" for page_name in cfg.page_names
     }
+
+    for page_name in state.dynamic_monitored_pages:
+        monitored_content_keys.add(f"content_{page_name}")
 
     if cfg.monitor_recent_created:
         monitored_content_keys.add("content_RecentCreated")
@@ -412,7 +474,8 @@ def run(cfg: Config) -> int:
     updated_seen, updated_hashes = _clean_monitored_state(
         updated_seen,
         state.content_hashes,
-        cfg
+        cfg,
+        state
     )
 
     prune_state(updated_seen, max_items=5000)
@@ -420,7 +483,8 @@ def run(cfg: Config) -> int:
     updated_state = State(
         seen=updated_seen,
         updated_at=datetime.now(timezone(timedelta(hours=9))).isoformat(),
-        content_hashes=updated_hashes
+        content_hashes=updated_hashes,
+        dynamic_monitored_pages=state.dynamic_monitored_pages
     )
 
     save_state(cfg.state_path, updated_state)
