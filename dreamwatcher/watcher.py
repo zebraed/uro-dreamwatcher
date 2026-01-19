@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
+import os
 
 from .wiki import WikiClient, WikiApiConfig, WikiAuth
 from .discord import WebhookClient, Event
@@ -18,6 +19,9 @@ from .snapshot import (
     get_content_diff_preview
 )
 from .types import SecretStr
+
+cpu = os.cpu_count() or 2
+max_workers = min(32, cpu * 8)
 
 
 @dataclass(frozen=True)
@@ -191,7 +195,7 @@ def get_specific_pages_updates(
     events = []
     updated_snapshots = {}
 
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
             executor.submit(client.get_page, page_name): page_name
             for page_name in all_monitored_pages
