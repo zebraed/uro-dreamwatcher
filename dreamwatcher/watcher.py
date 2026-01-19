@@ -303,7 +303,16 @@ def get_specific_pages_updates(
                 )
                 events.append(initial_event)
 
-            elif old_hash != new_hash:
+                timestamp = page_date
+                snapshot = update_snapshot(
+                    page_name=page_name,
+                    current_content=page_content,
+                    snapshots=snapshots,
+                    timestamp=timestamp
+                )
+                updated_snapshots[page_name] = snapshot
+
+            if old_hash != new_hash and not is_initial:
                 timestamp = page_date
                 snapshot = update_snapshot(
                     page_name=page_name,
