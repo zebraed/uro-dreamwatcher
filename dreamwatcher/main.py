@@ -29,7 +29,7 @@ def main():
     snapshots_dir = os.environ.get("SNAPSHOTS_DIR_PATH", ".snapshots").strip()
     page_names_str = os.environ.get("WIKIWIKI_PAGE_NAMES", "").strip()
     monitor_recent_created_str = os.environ.get(
-        "WIKIWIKI_MONITOR_RECENT_CREATED", "false"
+        "WIKIWIKI_MONITOR_RECENT_CREATED", "true"
     ).strip().lower()
     monitor_recent_created = monitor_recent_created_str == "true"
 
