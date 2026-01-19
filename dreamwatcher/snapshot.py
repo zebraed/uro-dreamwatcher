@@ -105,7 +105,11 @@ def get_content_diff_preview(
     if not snapshot or not snapshot.diff:
         return None
 
-    diff_text = _convert_links(snapshot.diff)
+    display_diff = get_display_diff(snapshot.diff)
+    if not display_diff:
+        return None
+
+    diff_text = _convert_links(display_diff)
     first_line = diff_text.split('\n')[0]
     parts = re.split(r"(\[[^\]]+\]\([^\)]+\))", first_line)
     result = []
@@ -121,8 +125,8 @@ def get_content_diff_preview(
                     truncated = ""
                     current_width = 0
                     for char in part:
-                        char_width = 2 if ord(char) > 127 else 1
-                        if current_width + char_width > remaining:
+                        char_width = (2 if ord(char) > 127 else 1)
+                        if (current_width + char_width > remaining):
                             break
                         truncated += char
                         current_width += char_width
@@ -136,16 +140,16 @@ def get_content_diff_preview(
     return preview_text if preview_text else None
 
 
-def get_diff(previous_content, current_content):
+def get_raw_diff(previous_content, current_content):
     """
-    Get diff between previous and current content.
+    Get raw diff between previous and current content.
 
     Args:
         previous_content: Previous content.
         current_content: Current content.
 
     Returns:
-        Optional[str]: Diff between previous and current content,
+        Optional[str]: Raw diff between previous and current content,
                        or None if unchanged.
     """
     if not previous_content:
@@ -159,7 +163,27 @@ def get_diff(previous_content, current_content):
         current_lines,
         lineterm=""
     )
-    added_lines = _filter_wiki_syntax(diff)
+
+    diff_lines = list(diff)
+    return "\n".join(diff_lines) if diff_lines else None
+
+
+def get_display_diff(raw_diff):
+    """
+    Get display diff from raw diff.
+
+    Args:
+        raw_diff: Raw diff string.
+
+    Returns:
+        Optional[str]: Display diff with wiki syntax filtered,
+                       or None if no content.
+    """
+    if not raw_diff:
+        return None
+
+    diff_lines = raw_diff.split('\n')
+    added_lines = _filter_wiki_syntax(diff_lines)
 
     return "\n".join(added_lines) if added_lines else None
 
@@ -237,7 +261,11 @@ def update_snapshot(
     previous_snapshot = snapshots.get(page_name)
     previous_content = previous_snapshot.content if previous_snapshot else None
 
-    diff = get_diff(previous_content, current_content) if previous_content else None
+    diff = (
+        get_raw_diff(previous_content, current_content)
+        if previous_content
+        else None
+    )
 
     return PageSnapshot(
         page_name=page_name,

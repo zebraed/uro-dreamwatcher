@@ -95,7 +95,7 @@ def filter_links(_item, _state: State, _mode: str):
 
 def _extract_page_names_from_diff(diff_text: str) -> list[str]:
     """
-    Extract page names from RecentCreated diff.
+    Extract page names from RecentCreated and RecentChanges diff.
 
     Extracts page names from [[...]] patterns in the diff text.
 
@@ -155,6 +155,83 @@ def _matches_pattern(page_name: str, patterns: list[str]) -> bool:
     return False
 
 
+def _check_monitored_pages(
+    pages_to_check: list[str],
+    client: WikiClient,
+    state: State,
+    cfg: Config,
+    snapshots: dict,
+    updated_snapshots: dict,
+    events: list
+) -> None:
+    """
+    Check monitored pages for updates and generate events.
+
+    Args:
+        pages_to_check: List of page names to check.
+        client: WikiClient instance.
+        state: Current state object.
+        cfg: Configuration object.
+        snapshots: Current snapshots dictionary.
+        updated_snapshots: Dictionary to store updated snapshots.
+        events: List to append events to.
+    """
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(
+                client.get_page, page
+            ): page
+            for page in pages_to_check
+        }
+
+        for future in as_completed(futures):
+            p_name = futures[future]
+            try:
+                p_data = future.result(timeout=10)
+                event = _check_page_data(
+                    p_name,
+                    p_data,
+                    state,
+                    cfg
+                )
+                p_content = p_data.get("source")
+                p_date = p_data.get("timestamp")
+                p_key = f"content_{p_name}"
+
+                if p_content:
+                    p_old = state.content_hashes.get(p_key)
+                    p_new = get_content_hash(p_content)
+                    state.content_hashes[p_key] = p_new
+                    if p_old != p_new:
+                        p_snap = update_snapshot(
+                            page_name=p_name,
+                            current_content=p_content,
+                            snapshots=snapshots,
+                            timestamp=p_date
+                        )
+                        updated_snapshots[p_name] = p_snap
+
+                if event:
+                    evt_snap = updated_snapshots.get(p_name)
+                    diff_prev = get_content_diff_preview(evt_snap)
+                    if (diff_prev or event.is_initial):
+                        evt = Event(
+                            title=event.title,
+                            url=event.url,
+                            page_name=event.page_name,
+                            date=event.date,
+                            diff_preview=diff_prev,
+                            is_initial=event.is_initial
+                        )
+                        events.append(evt)
+            except (
+                OSError,
+                ValueError,
+                TimeoutError
+            ) as e:
+                print(f"Error getting page '{p_name}': {e}")
+
+
 def _create_wiki_client(cfg: Config) -> WikiClient:
     """
     Create a WikiClient instance.
@@ -174,7 +251,7 @@ def get_specific_pages_updates(
     cfg: Config, state: State, client: WikiClient
 ) -> list[Event]:
     """
-    Get updates for specific pages.
+    Get updates for specific pages by monitoring RecentChanges.
 
     Args:
         cfg: Configuration object.
@@ -184,9 +261,7 @@ def get_specific_pages_updates(
     Returns:
         list[Event]: List of events for updated pages.
     """
-    all_monitored_pages = list(cfg.page_names) + list(
-        state.dynamic_monitored_pages
-    )
+    all_monitored_pages = set(cfg.page_names) | state.dynamic_monitored_pages
 
     if not all_monitored_pages:
         return []
@@ -196,50 +271,71 @@ def get_specific_pages_updates(
     events = []
     updated_snapshots = {}
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {
-            executor.submit(client.get_page, page_name): page_name
-            for page_name in all_monitored_pages
-        }
+    page_name = "RecentChanges"
+    try:
+        page_data = client.get_page(page_name)
+        page_content = page_data.get("source")
+        page_date = page_data.get("timestamp")
+        content_key = f"content_{page_name}"
 
-        for future in as_completed(futures):
-            page_name = futures[future]
-            try:
-                page_data = future.result(timeout=10)
-                event = _check_page_data(page_name, page_data, state, cfg)
-                page_content = page_data.get("source")
-                page_date = page_data.get("timestamp")
-                content_key = f"content_{page_name}"
+        if page_content:
+            old_hash = state.content_hashes.get(content_key)
+            new_hash = get_content_hash(page_content)
+            state.content_hashes[content_key] = new_hash
 
-                if page_content:
-                    old_hash = state.content_hashes.get(content_key)
-                    new_hash = get_content_hash(page_content)
-                    state.content_hashes[content_key] = new_hash
-                    if old_hash != new_hash:
-                        timestamp = page_date
-                        snapshot = update_snapshot(
-                            page_name=page_name,
-                            current_content=page_content,
-                            snapshots=snapshots,
-                            timestamp=timestamp
+            is_initial = old_hash is None
+
+            if is_initial:
+                page_url = (
+                    f"{cfg.wiki_url.rstrip('/')}/?{page_name}"
+                    if cfg.wiki_url
+                    else page_name
+                )
+                initial_event = Event(
+                    title=(
+                        f"{Emoji.initial} 【RecentChanges】 "
+                        "の通知が設定されました。"
+                    ),
+                    url=page_url,
+                    page_name=page_name,
+                    date=page_date,
+                    is_initial=True
+                )
+                events.append(initial_event)
+
+            elif old_hash != new_hash:
+                timestamp = page_date
+                snapshot = update_snapshot(
+                    page_name=page_name,
+                    current_content=page_content,
+                    snapshots=snapshots,
+                    timestamp=timestamp
+                )
+                updated_snapshots[page_name] = snapshot
+
+                if snapshot and snapshot.diff:
+                    updated_page_names = (
+                        _extract_page_names_from_diff(
+                            snapshot.diff
                         )
-                        updated_snapshots[page_name] = snapshot
-
-                if event:
-                    snapshot = updated_snapshots.get(page_name)
-                    diff_preview = get_content_diff_preview(snapshot)
-                    if diff_preview or event.is_initial:
-                        event_with_diff = Event(
-                            title=event.title,
-                            url=event.url,
-                            page_name=event.page_name,
-                            date=event.date,
-                            diff_preview=diff_preview,
-                            is_initial=event.is_initial
+                    )
+                    pages_to_check = [
+                        p for p in updated_page_names
+                        if p in all_monitored_pages
+                    ]
+                    if pages_to_check:
+                        _check_monitored_pages(
+                            pages_to_check,
+                            client,
+                            state,
+                            cfg,
+                            snapshots,
+                            updated_snapshots,
+                            events
                         )
-                        events.append(event_with_diff)
-            except (OSError, ValueError, TimeoutError) as e:
-                print(f"Error getting page '{page_name}': {e}")
+
+    except (OSError, ValueError, TimeoutError) as e:
+        print(f"Error getting RecentChanges: {e}")
 
     if updated_snapshots:
         snapshots.update(updated_snapshots)
