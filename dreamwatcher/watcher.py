@@ -20,8 +20,9 @@ from .snapshot import (
 )
 from .types import SecretStr
 
-cpu = os.cpu_count() or 2
-max_workers = min(32, cpu * 8)
+# cpu = os.cpu_count() or 2
+# max_workers = min(32, cpu * 8)
+max_workers = 8
 
 
 @dataclass(frozen=True)
