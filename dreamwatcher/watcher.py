@@ -660,6 +660,9 @@ def _clean_monitored_state(
     if cfg.monitor_recent_created:
         monitored_page_keys.add(normalize_link("page/RecentCreated"))
 
+    if cfg.page_names or state.dynamic_monitored_pages:
+        monitored_page_keys.add(normalize_link("page/RecentChanges"))
+
     cleaned_seen = {
         k: v for k, v in seen.items()
         if k in monitored_page_keys or not k.startswith("page/")
@@ -674,6 +677,9 @@ def _clean_monitored_state(
 
     if cfg.monitor_recent_created:
         monitored_content_keys.add("content_RecentCreated")
+
+    if cfg.page_names or state.dynamic_monitored_pages:
+        monitored_content_keys.add("content_RecentChanges")
 
     cleaned_hashes = {
         k: v for k, v in content_hashes.items()
