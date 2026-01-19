@@ -291,7 +291,7 @@ def _process_initial_pages(
         )
         created_event = Event(
             title=(
-                f"{Emoji.new} "
+                f"{Emoji.initial} "
                 f"ページが{len(auto_tracked_pages)}件 通知登録されました"
             ),
             url=cfg.wiki_url if cfg.wiki_url else "",
