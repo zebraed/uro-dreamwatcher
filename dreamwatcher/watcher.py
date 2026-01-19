@@ -21,8 +21,8 @@ from .snapshot import (
 from .types import SecretStr
 
 # cpu = os.cpu_count() or 2
-# max_workers = min(32, cpu * 8)
-max_workers = 8
+# MAX_WORKERS = min(32, cpu * 8)
+MAX_WORKERS = 8
 
 
 @dataclass(frozen=True)
@@ -125,12 +125,12 @@ def _is_page_closed(page_content: str) -> bool:
     """
     if not page_content:
         return False
-    lines = page_content.split('\n')
+    lines = page_content.split("\n")
     for line in lines:
         stripped = line.strip()
         if not stripped:
             continue
-        if stripped.startswith('* 【終了】') or stripped.startswith('*【終了】'):
+        if stripped.startswith("* 【終了】") or stripped.startswith("*【終了】"):
             return True
         break
     return False
@@ -176,7 +176,7 @@ def _check_monitored_pages(
         updated_snapshots: Dictionary to store updated snapshots.
         events: List to append events to.
     """
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = {
             executor.submit(
                 client.get_page, page
@@ -199,6 +199,9 @@ def _check_monitored_pages(
                 p_key = f"content_{p_name}"
 
                 if p_content:
+                    if _is_page_closed(p_content):
+                        state.dynamic_monitored_pages.discard(p_name)
+
                     p_old = state.content_hashes.get(p_key)
                     p_new = get_content_hash(p_content)
                     state.content_hashes[p_key] = p_new
