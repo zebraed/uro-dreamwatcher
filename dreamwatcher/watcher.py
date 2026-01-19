@@ -36,6 +36,7 @@ class Config:
         page_names: List of specific page names to monitor.
         wiki_url: The URL of the wiki.
         snapshots_dir: The directory to store page snapshots.
+        monitor_recent_created: Whether to monitor the RecentCreated page.
     """
     source: str
     wiki_id: str
@@ -48,6 +49,7 @@ class Config:
     page_names: list[str] = field(default_factory=list)
     wiki_url: str = ""
     snapshots_dir: Path = field(default_factory=lambda: Path(".snapshots"))
+    monitor_recent_created: bool = False
 
     def __repr__(self) -> str:
         return "<Config: hidden>"
@@ -158,6 +160,73 @@ def get_specific_pages_updates(cfg: Config, state: State) -> list[Event]:
     return events
 
 
+def get_recent_created_updates(cfg: Config, state: State) -> list[Event]:
+    """
+    Get updates from the RecentCreated page.
+
+    Args:
+        cfg: Configuration object.
+        state: Current state object.
+
+    Returns:
+        list[Event]: List of events for newly created pages.
+    """
+    if not cfg.monitor_recent_created:
+        return []
+
+    api_cfg = WikiApiConfig(wiki_id=cfg.wiki_id)
+    auth = WikiAuth(api_key_id=cfg.api_key_id, secret=cfg.api_secret)
+    client = WikiClient(api_cfg, auth)
+
+    cfg.snapshots_dir.mkdir(parents=True, exist_ok=True)
+    snapshots = load_snapshots(cfg.snapshots_dir / "snapshots.json")
+    events = []
+    updated_snapshots = {}
+
+    page_name = "RecentCreated"
+    try:
+        page_data = client.get_page(page_name)
+        event = _check_page_data(page_name, page_data, state, cfg)
+        page_content = page_data.get("source")
+        page_date = page_data.get("timestamp")
+        content_key = f"content_{page_name}"
+
+        if page_content:
+            old_hash = state.content_hashes.get(content_key)
+            new_hash = get_content_hash(page_content)
+            state.content_hashes[content_key] = new_hash
+            if old_hash != new_hash:
+                timestamp = page_date
+                snapshot = update_snapshot(
+                    page_name=page_name,
+                    current_content=page_content,
+                    snapshots=snapshots,
+                    timestamp=timestamp
+                )
+                updated_snapshots[page_name] = snapshot
+
+        if event:
+            snapshot = updated_snapshots.get(page_name)
+            diff_preview = get_content_diff_preview(snapshot)
+            if diff_preview or event.is_initial:
+                event_with_diff = Event(
+                    title=event.title,
+                    url=event.url,
+                    page_name=event.page_name,
+                    date=event.date,
+                    diff_preview=diff_preview,
+                    is_initial=event.is_initial
+                )
+                events.append(event_with_diff)
+    except (OSError, ValueError, TimeoutError) as e:
+        print(f"Error getting page '{page_name}': {e}")
+
+    if updated_snapshots:
+        snapshots.update(updated_snapshots)
+        save_snapshots(cfg.snapshots_dir / "snapshots.json", snapshots)
+
+    return events
+
 def _check_page_data(
     page_name: str,
     page_data: dict,
@@ -257,6 +326,9 @@ def run(cfg: Config) -> int:
 
     page_events = get_specific_pages_updates(cfg, state)
     events_to_send.extend(page_events)
+
+    #recent_created_events = get_recent_created_updates(cfg, state)
+    #events_to_send.extend(recent_created_events)
 
     if not events_to_send:
         return 0

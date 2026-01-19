@@ -28,6 +28,10 @@ def main():
     state_path = os.environ.get("STATE_PATH", "state.json").strip()
     snapshots_dir = os.environ.get("SNAPSHOTS_DIR_PATH", ".snapshots").strip()
     page_names_str = os.environ.get("WIKIWIKI_PAGE_NAMES", "").strip()
+    monitor_recent_created_str = os.environ.get(
+        "WIKIWIKI_MONITOR_RECENT_CREATED", "false"
+    ).strip().lower()
+    monitor_recent_created = monitor_recent_created_str == "true"
 
     if not wiki_id:
         print("Error: WIKIWIKI_ID is not set")
@@ -62,7 +66,8 @@ def main():
         rss_url=rss_url,
         page_names=page_names,
         wiki_url=wiki_url,
-        snapshots_dir=Path(snapshots_dir)
+        snapshots_dir=Path(snapshots_dir),
+        monitor_recent_created=monitor_recent_created
         )
 
     return run(cfg)
