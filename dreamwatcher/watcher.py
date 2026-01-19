@@ -272,6 +272,36 @@ def get_recent_created_updates(
 
         if event:
             if event.is_initial:
+                if page_content:
+                    lines = page_content.split('\n')
+                    for line in lines:
+                        page_names = _extract_page_names_from_diff(line)
+                        for created_page_name in page_names:
+                            if (cfg.auto_track_pattern and
+                                    created_page_name.startswith(
+                                        cfg.auto_track_pattern
+                                    )):
+                                try:
+                                    page_data_for_check = client.get_page(
+                                        created_page_name
+                                    )
+                                    page_content_for_check = (
+                                        page_data_for_check.get("source")
+                                    )
+                                    if page_content_for_check:
+                                        if not _is_page_closed(
+                                            page_content_for_check
+                                        ):
+                                            state.dynamic_monitored_pages.add(
+                                                created_page_name
+                                            )
+                                except (
+                                    OSError, ValueError, TimeoutError
+                                ) as e:
+                                    print(
+                                        f"Error checking page "
+                                        f"'{created_page_name}': {e}"
+                                    )
                 events.append(event)
             else:
                 snapshot = updated_snapshots.get(page_name)
@@ -298,7 +328,9 @@ def get_recent_created_updates(
                                         state.dynamic_monitored_pages.add(
                                             created_page_name
                                         )
-                            except (OSError, ValueError, TimeoutError) as e:
+                            except (
+                                OSError, ValueError, TimeoutError
+                            ) as e:
                                 print(
                                     f"Error checking page "
                                     f"'{created_page_name}': {e}"
