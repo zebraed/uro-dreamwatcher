@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import re
 
 from .wiki import WikiClient, WikiApiConfig, WikiAuth
 from .discord import WebhookClient, Event
@@ -49,7 +50,7 @@ class Config:
     page_names: list[str] = field(default_factory=list)
     wiki_url: str = ""
     snapshots_dir: Path = field(default_factory=lambda: Path(".snapshots"))
-    monitor_recent_created: bool = False
+    monitor_recent_created: bool = True
 
     def __repr__(self) -> str:
         return "<Config: hidden>"
@@ -85,23 +86,57 @@ def filter_links(_item, _state: State, _mode: str):
     return True
 
 
-def get_specific_pages_updates(cfg: Config, state: State) -> list[Event]:
+def _extract_page_names_from_diff(diff_text: str) -> list[str]:
+    """
+    Extract page names from RecentCreated diff.
+
+    Extracts page names from [[...]] patterns in the diff text.
+
+    Args:
+        diff_text: Diff text containing page names in [[...]] format.
+
+    Returns:
+        list[str]: List of extracted page names.
+    """
+    page_names = []
+    pattern = r"\[\[([^\]]+)\]\]"
+    matches = re.findall(pattern, diff_text)
+    for match in matches:
+        page_names.append(match)
+    return page_names
+
+
+def _create_wiki_client(cfg: Config) -> WikiClient:
+    """
+    Create a WikiClient instance.
+
+    Args:
+        cfg: Configuration object.
+
+    Returns:
+        WikiClient: Initialized WikiClient instance.
+    """
+    api_cfg = WikiApiConfig(wiki_id=cfg.wiki_id)
+    auth = WikiAuth(api_key_id=cfg.api_key_id, secret=cfg.api_secret)
+    return WikiClient(api_cfg, auth)
+
+
+def get_specific_pages_updates(
+    cfg: Config, state: State, client: WikiClient
+) -> list[Event]:
     """
     Get updates for specific pages.
 
     Args:
         cfg: Configuration object.
         state: Current state object.
+        client: WikiClient instance.
 
     Returns:
         list[Event]: List of events for updated pages.
     """
     if not cfg.page_names:
         return []
-
-    api_cfg = WikiApiConfig(wiki_id=cfg.wiki_id)
-    auth = WikiAuth(api_key_id=cfg.api_key_id, secret=cfg.api_secret)
-    client = WikiClient(api_cfg, auth)
 
     cfg.snapshots_dir.mkdir(parents=True, exist_ok=True)
     snapshots = load_snapshots(cfg.snapshots_dir / "snapshots.json")
@@ -160,23 +195,22 @@ def get_specific_pages_updates(cfg: Config, state: State) -> list[Event]:
     return events
 
 
-def get_recent_created_updates(cfg: Config, state: State) -> list[Event]:
+def get_recent_created_updates(
+    cfg: Config, state: State, client: WikiClient
+) -> list[Event]:
     """
     Get updates from the RecentCreated page.
 
     Args:
         cfg: Configuration object.
         state: Current state object.
+        client: WikiClient instance.
 
     Returns:
         list[Event]: List of events for newly created pages.
     """
     if not cfg.monitor_recent_created:
         return []
-
-    api_cfg = WikiApiConfig(wiki_id=cfg.wiki_id)
-    auth = WikiAuth(api_key_id=cfg.api_key_id, secret=cfg.api_secret)
-    client = WikiClient(api_cfg, auth)
 
     cfg.snapshots_dir.mkdir(parents=True, exist_ok=True)
     snapshots = load_snapshots(cfg.snapshots_dir / "snapshots.json")
@@ -186,7 +220,9 @@ def get_recent_created_updates(cfg: Config, state: State) -> list[Event]:
     page_name = "RecentCreated"
     try:
         page_data = client.get_page(page_name)
-        event = _check_page_data(page_name, page_data, state, cfg)
+        event = _check_page_data(
+            page_name, page_data, state, cfg, event_type="created"
+        )
         page_content = page_data.get("source")
         page_date = page_data.get("timestamp")
         content_key = f"content_{page_name}"
@@ -206,18 +242,31 @@ def get_recent_created_updates(cfg: Config, state: State) -> list[Event]:
                 updated_snapshots[page_name] = snapshot
 
         if event:
-            snapshot = updated_snapshots.get(page_name)
-            diff_preview = get_content_diff_preview(snapshot)
-            if diff_preview or event.is_initial:
-                event_with_diff = Event(
-                    title=event.title,
-                    url=event.url,
-                    page_name=event.page_name,
-                    date=event.date,
-                    diff_preview=diff_preview,
-                    is_initial=event.is_initial
-                )
-                events.append(event_with_diff)
+            if event.is_initial:
+                events.append(event)
+            else:
+                snapshot = updated_snapshots.get(page_name)
+                if snapshot and snapshot.diff:
+                    page_names = _extract_page_names_from_diff(
+                        snapshot.diff
+                    )
+                    for created_page_name in page_names:
+                        created_event = Event(
+                            title=(
+                                f"{Emoji.new} 【{created_page_name}】"
+                                " が新規作成されました。"
+                            ),
+                            url=(
+                                f"{cfg.wiki_url.rstrip('/')}/?{created_page_name}"  # noqa: E501
+                                if cfg.wiki_url
+                                else created_page_name
+                            ),
+                            page_name=created_page_name,
+                            date=page_date,
+                            diff_preview=created_page_name,
+                            is_initial=False
+                        )
+                        events.append(created_event)
     except (OSError, ValueError, TimeoutError) as e:
         print(f"Error getting page '{page_name}': {e}")
 
@@ -227,11 +276,13 @@ def get_recent_created_updates(cfg: Config, state: State) -> list[Event]:
 
     return events
 
+
 def _check_page_data(
     page_name: str,
     page_data: dict,
     state: State,
-    cfg: Config
+    cfg: Config,
+    event_type: str = "update"
 ) -> Optional[Event]:
     """
     Process page data and check if it has been updated.
@@ -241,6 +292,7 @@ def _check_page_data(
         page_data: The page data from the API.
         state: Current state object.
         cfg: Configuration object.
+        event_type: Type of event ("update" or "created").
 
     Returns:
         Optional[Event]: Event if page is new or updated, None otherwise.
@@ -257,7 +309,10 @@ def _check_page_data(
         else page_name
     )
 
-    page_event_title = f"{Emoji.update} 【{page_title}】 が更新されました。"
+    if event_type == "created":
+        page_event_title = f"{Emoji.new} 【{page_title}】 が新規作成されました。"
+    else:
+        page_event_title = f"{Emoji.update} 【{page_title}】 が更新されました。"
 
     is_page_first_run = f"content_{page_name}" not in state.content_hashes
 
@@ -305,14 +360,24 @@ def _clean_monitored_state(
         for page_name in cfg.page_names
     }
 
+    if cfg.monitor_recent_created:
+        monitored_page_keys.add(normalize_link("page/RecentCreated"))
+
     cleaned_seen = {
         k: v for k, v in seen.items()
         if k in monitored_page_keys or not k.startswith("page/")
     }
 
+    monitored_content_keys = {
+        f"content_{page_name}" for page_name in cfg.page_names
+    }
+
+    if cfg.monitor_recent_created:
+        monitored_content_keys.add("content_RecentCreated")
+
     cleaned_hashes = {
         k: v for k, v in content_hashes.items()
-        if any(k == f"content_{page_name}" for page_name in cfg.page_names)
+        if k in monitored_content_keys
     }
 
     return cleaned_seen, cleaned_hashes
@@ -324,11 +389,13 @@ def run(cfg: Config) -> int:
 
     events_to_send = []
 
-    page_events = get_specific_pages_updates(cfg, state)
+    wiki_client = _create_wiki_client(cfg)
+
+    page_events = get_specific_pages_updates(cfg, state, wiki_client)
     events_to_send.extend(page_events)
 
-    #recent_created_events = get_recent_created_updates(cfg, state)
-    #events_to_send.extend(recent_created_events)
+    recent_created_events = get_recent_created_updates(cfg, state, wiki_client)
+    events_to_send.extend(recent_created_events)
 
     if not events_to_send:
         return 0
