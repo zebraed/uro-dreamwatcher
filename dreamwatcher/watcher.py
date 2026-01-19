@@ -298,7 +298,7 @@ def _process_initial_pages(
             page_name="RecentCreated",
             date=page_date,
             diff_preview=page_list,
-            is_initial=False
+            is_initial=False  # NOTE: its not a new page
         )
         events.append(created_event)
 
@@ -317,7 +317,10 @@ def _process_updated_pages(
     page_names = _extract_page_names_from_diff(
         snapshot.diff
     )
+    newly_created_pages = []
+    auto_tracked_pages = []
     for created_page_name in page_names:
+        newly_created_pages.append(created_page_name)
         if _matches_pattern(
             created_page_name,
             cfg.auto_track_patterns
@@ -333,6 +336,12 @@ def _process_updated_pages(
                     if not _is_page_closed(
                         page_content_for_check
                     ):
+                        if created_page_name not in (
+                            state.dynamic_monitored_pages
+                        ):
+                            auto_tracked_pages.append(
+                                created_page_name
+                            )
                         state.dynamic_monitored_pages.add(
                             created_page_name
                         )
@@ -344,22 +353,39 @@ def _process_updated_pages(
                     f"'{created_page_name}': {e}"
                 )
 
+    if newly_created_pages:
+        page_list = "\n".join(
+            [f"・{page}" for page in newly_created_pages]
+        )
         created_event = Event(
             title=(
-                f"{Emoji.new} 【{created_page_name}】"
-                " が新規作成されました。"
+                f"{Emoji.new} "
+                f"ページが{len(newly_created_pages)}件 新規作成されました"
             ),
-            url=(
-                f"{cfg.wiki_url.rstrip('/')}/?{created_page_name}"
-                if cfg.wiki_url
-                else created_page_name
-            ),
-            page_name=created_page_name,
+            url=cfg.wiki_url if cfg.wiki_url else "",
+            page_name="RecentCreated",
             date=page_date,
-            diff_preview=created_page_name,
+            diff_preview=page_list,
             is_initial=False
         )
         events.append(created_event)
+
+    if auto_tracked_pages:
+        page_list = "\n".join(
+            [f"・{page}" for page in auto_tracked_pages]
+        )
+        tracked_event = Event(
+            title=(
+                f"{Emoji.initial} "
+                f"ページが{len(auto_tracked_pages)}件 通知登録されました"
+            ),
+            url=cfg.wiki_url if cfg.wiki_url else "",
+            page_name="RecentCreated",
+            date=page_date,
+            diff_preview=page_list,
+            is_initial=False
+        )
+        events.append(tracked_event)
 
 
 def get_recent_created_updates(
