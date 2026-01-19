@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
-import os
+# import os
 
 from .wiki import WikiClient, WikiApiConfig, WikiAuth
 from .discord import WebhookClient, Event
