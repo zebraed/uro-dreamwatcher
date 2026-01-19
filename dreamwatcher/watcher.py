@@ -52,7 +52,7 @@ class Config:
     wiki_url: str = ""
     snapshots_dir: Path = field(default_factory=lambda: Path(".snapshots"))
     monitor_recent_created: bool = True
-    auto_track_pattern: str = ""
+    auto_track_patterns: list[str] = field(default_factory=list)
 
     def __repr__(self) -> str:
         return "<Config: hidden>"
@@ -128,6 +128,25 @@ def _is_page_closed(page_content: str) -> bool:
         if stripped.startswith('* 【終了】') or stripped.startswith('*【終了】'):
             return True
         break
+    return False
+
+
+def _matches_pattern(page_name: str, patterns: list[str]) -> bool:
+    """
+    Check if page name matches any of the patterns.
+
+    Args:
+        page_name: Page name to check.
+        patterns: List of regex patterns.
+
+    Returns:
+        bool: True if matches any pattern, False otherwise.
+    """
+    if not patterns:
+        return False
+    for pattern in patterns:
+        if re.match(pattern, page_name):
+            return True
     return False
 
 
@@ -224,6 +243,125 @@ def get_specific_pages_updates(
     return events
 
 
+def _process_initial_pages(
+    page_content: str,
+    page_date: str,
+    cfg: Config,
+    state: State,
+    client: WikiClient,
+    events: list
+) -> None:
+    lines = page_content.split('\n')
+    auto_tracked_pages = []
+    for line in lines:
+        page_names = _extract_page_names_from_diff(line)
+        for created_page_name in page_names:
+            if _matches_pattern(
+                created_page_name,
+                cfg.auto_track_patterns
+            ):
+                try:
+                    page_data_for_check = client.get_page(
+                        created_page_name
+                    )
+                    page_content_for_check = (
+                        page_data_for_check.get("source")
+                    )
+                    if page_content_for_check:
+                        if not _is_page_closed(
+                            page_content_for_check
+                        ):
+                            state.dynamic_monitored_pages.add(
+                                created_page_name
+                            )
+                            auto_tracked_pages.append(
+                                created_page_name
+                            )
+                except (
+                    OSError, ValueError, TimeoutError
+                ) as e:
+                    print(
+                        f"Error checking page "
+                        f"'{created_page_name}': {e}"
+                    )
+
+    if auto_tracked_pages:
+        page_list = "\n".join(
+            [f"・{page}" for page in auto_tracked_pages]
+        )
+        created_event = Event(
+            title=(
+                f"{Emoji.new} "
+                f"ページが{len(auto_tracked_pages)}件 通知登録されました"
+            ),
+            url=cfg.wiki_url if cfg.wiki_url else "",
+            page_name="RecentCreated",
+            date=page_date,
+            diff_preview=page_list,
+            is_initial=False
+        )
+        events.append(created_event)
+
+
+def _process_updated_pages(
+    snapshot,
+    page_date: str,
+    cfg: Config,
+    state: State,
+    client: WikiClient,
+    events: list
+) -> None:
+    if not snapshot or not snapshot.diff:
+        return
+
+    page_names = _extract_page_names_from_diff(
+        snapshot.diff
+    )
+    for created_page_name in page_names:
+        if _matches_pattern(
+            created_page_name,
+            cfg.auto_track_patterns
+        ):
+            try:
+                page_data_for_check = client.get_page(
+                    created_page_name
+                )
+                page_content_for_check = (
+                    page_data_for_check.get("source")
+                )
+                if page_content_for_check:
+                    if not _is_page_closed(
+                        page_content_for_check
+                    ):
+                        state.dynamic_monitored_pages.add(
+                            created_page_name
+                        )
+            except (
+                OSError, ValueError, TimeoutError
+            ) as e:
+                print(
+                    f"Error checking page "
+                    f"'{created_page_name}': {e}"
+                )
+
+        created_event = Event(
+            title=(
+                f"{Emoji.new} 【{created_page_name}】"
+                " が新規作成されました。"
+            ),
+            url=(
+                f"{cfg.wiki_url.rstrip('/')}/?{created_page_name}"
+                if cfg.wiki_url
+                else created_page_name
+            ),
+            page_name=created_page_name,
+            date=page_date,
+            diff_preview=created_page_name,
+            is_initial=False
+        )
+        events.append(created_event)
+
+
 def get_recent_created_updates(
     cfg: Config, state: State, client: WikiClient
 ) -> list[Event]:
@@ -273,85 +411,17 @@ def get_recent_created_updates(
         if event:
             if event.is_initial:
                 if page_content:
-                    lines = page_content.split('\n')
-                    for line in lines:
-                        page_names = _extract_page_names_from_diff(line)
-                        for created_page_name in page_names:
-                            if (cfg.auto_track_pattern and
-                                    created_page_name.startswith(
-                                        cfg.auto_track_pattern
-                                    )):
-                                try:
-                                    page_data_for_check = client.get_page(
-                                        created_page_name
-                                    )
-                                    page_content_for_check = (
-                                        page_data_for_check.get("source")
-                                    )
-                                    if page_content_for_check:
-                                        if not _is_page_closed(
-                                            page_content_for_check
-                                        ):
-                                            state.dynamic_monitored_pages.add(
-                                                created_page_name
-                                            )
-                                except (
-                                    OSError, ValueError, TimeoutError
-                                ) as e:
-                                    print(
-                                        f"Error checking page "
-                                        f"'{created_page_name}': {e}"
-                                    )
+                    _process_initial_pages(
+                        page_content, page_date, cfg, state,
+                        client, events
+                    )
                 events.append(event)
             else:
                 snapshot = updated_snapshots.get(page_name)
-                if snapshot and snapshot.diff:
-                    page_names = _extract_page_names_from_diff(
-                        snapshot.diff
-                    )
-                    for created_page_name in page_names:
-                        if (cfg.auto_track_pattern and
-                                created_page_name.startswith(
-                                    cfg.auto_track_pattern
-                                )):
-                            try:
-                                page_data_for_check = client.get_page(
-                                    created_page_name
-                                )
-                                page_content_for_check = (
-                                    page_data_for_check.get("source")
-                                )
-                                if page_content_for_check:
-                                    if not _is_page_closed(
-                                        page_content_for_check
-                                    ):
-                                        state.dynamic_monitored_pages.add(
-                                            created_page_name
-                                        )
-                            except (
-                                OSError, ValueError, TimeoutError
-                            ) as e:
-                                print(
-                                    f"Error checking page "
-                                    f"'{created_page_name}': {e}"
-                                )
-
-                        created_event = Event(
-                            title=(
-                                f"{Emoji.new} 【{created_page_name}】"
-                                " が新規作成されました。"
-                            ),
-                            url=(
-                                f"{cfg.wiki_url.rstrip('/')}/?{created_page_name}"  # noqa: E501
-                                if cfg.wiki_url
-                                else created_page_name
-                            ),
-                            page_name=created_page_name,
-                            date=page_date,
-                            diff_preview=created_page_name,
-                            is_initial=False
-                        )
-                        events.append(created_event)
+                _process_updated_pages(
+                    snapshot, page_date, cfg, state,
+                    client, events
+                )
     except (OSError, ValueError, TimeoutError) as e:
         print(f"Error getting page '{page_name}': {e}")
 

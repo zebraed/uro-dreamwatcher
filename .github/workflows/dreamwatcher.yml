@@ -45,7 +45,7 @@ jobs:
           WIKIWIKI_API_SECRET: ${{ secrets.WIKIWIKI_API_SECRET }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           WIKIWIKI_PAGE_NAMES: ${{ vars.WIKIWIKI_PAGE_NAMES }}
-          WIKIWIKI_AUTO_TRACK_PATTERN: ${{ vars.WIKIWIKI_AUTO_TRACK_PATTERN }}
+          WIKIWIKI_AUTO_TRACK_PATTERNS: ${{ vars.WIKIWIKI_AUTO_TRACK_PATTERNS }}
           STATE_PATH: ${{ vars.STATE_PATH }}
         run: python -m dreamwatcher.main
 

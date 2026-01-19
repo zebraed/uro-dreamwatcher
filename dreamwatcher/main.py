@@ -32,9 +32,13 @@ def main():
         "WIKIWIKI_MONITOR_RECENT_CREATED", "true"
     ).strip().lower()
     monitor_recent_created = monitor_recent_created_str == "true"
-    auto_track_pattern = os.environ.get(
-        "WIKIWIKI_AUTO_TRACK_PATTERN", ""
+    auto_track_patterns = os.environ.get(
+        "WIKIWIKI_AUTO_TRACK_PATTERNS", ""
     ).strip()
+    auto_track_patterns = [
+        pattern.strip() for pattern in auto_track_patterns.split(",")
+        if pattern.strip()
+    ]
 
     if not wiki_id:
         print("Error: WIKIWIKI_ID is not set")
@@ -71,7 +75,7 @@ def main():
         wiki_url=wiki_url,
         snapshots_dir=Path(snapshots_dir),
         monitor_recent_created=monitor_recent_created,
-        auto_track_pattern=auto_track_pattern
+        auto_track_patterns=auto_track_patterns
         )
 
     return run(cfg)
