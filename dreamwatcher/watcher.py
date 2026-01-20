@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
-# import os
 
 from .wiki import WikiClient, WikiApiConfig, WikiAuth
 from .discord import WebhookClient, Event
@@ -20,8 +19,7 @@ from .snapshot import (
 )
 from .types import SecretStr
 
-# cpu = os.cpu_count() or 2
-# MAX_WORKERS = min(32, cpu * 8)
+
 MAX_WORKERS = 8
 
 
@@ -37,7 +35,6 @@ class Config:
         api_secret: The API secret.
         discord_webhook_url: The URL of the Discord webhook.
         state_path: The path to the state file.
-        mode: The mode of watcher.
         rss_url: The URL of the RSS feed. # Not implemented yet
         page_names: List of specific page names to monitor.
         wiki_url: The URL of the wiki.
@@ -51,7 +48,6 @@ class Config:
     api_secret: SecretStr = field(repr=False)
     discord_webhook_url: SecretStr = field(repr=False)
     state_path: Path
-    mode: str = "all"
     rss_url: str = ""
     page_names: list[str] = field(default_factory=list)
     wiki_url: str = ""
