@@ -3,7 +3,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import (
+    ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
+)
 import re
 
 from .wiki import WikiClient, WikiApiConfig, WikiAuth
@@ -172,63 +174,79 @@ def _check_monitored_pages(
         updated_snapshots: Dictionary to store updated snapshots.
         events: List to append events to.
     """
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+    max_workers = min(MAX_WORKERS, max(1, len(pages_to_check)))
+    per_batch_timeout = 10
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(
-                client.get_page, page
-            ): page
+            executor.submit(client.get_page, page): page
             for page in pages_to_check
         }
 
-        for future in as_completed(futures):
-            p_name = futures[future]
-            try:
-                p_data = future.result(timeout=10)
-                event = _check_page_data(
-                    p_name,
-                    p_data,
-                    state,
-                    cfg
+        try:
+            for future in as_completed(futures, timeout=per_batch_timeout):
+                p_name = futures[future]
+                try:
+                    p_data = future.result()
+                    event = _check_page_data(
+                        p_name,
+                        p_data,
+                        state,
+                        cfg
+                    )
+                    p_content = p_data.get("source")
+                    p_date = p_data.get("timestamp")
+                    p_key = f"content_{p_name}"
+
+                    if p_content:
+                        if _is_page_closed(p_content):
+                            state.dynamic_monitored_pages.discard(p_name)
+
+                        p_old = state.content_hashes.get(p_key)
+                        p_new = get_content_hash(p_content)
+                        state.content_hashes[p_key] = p_new
+                        if p_old != p_new:
+                            p_snap = update_snapshot(
+                                page_name=p_name,
+                                current_content=p_content,
+                                snapshots=snapshots,
+                                timestamp=p_date
+                            )
+                            updated_snapshots[p_name] = p_snap
+
+                    if event:
+                        evt_snap = updated_snapshots.get(p_name)
+                        diff_prev = get_content_diff_preview(evt_snap)
+                        if (diff_prev or event.is_initial):
+                            evt = Event(
+                                title=event.title,
+                                url=event.url,
+                                page_name=event.page_name,
+                                date=event.date,
+                                diff_preview=diff_prev,
+                                is_initial=event.is_initial
+                            )
+                            events.append(evt)
+                except (
+                    OSError,
+                    ValueError,
+                    TimeoutError
+                ) as e:
+                    print(f"Error getting page '{p_name}': {e}")
+        except FuturesTimeoutError:
+            for future in futures:
+                if not future.done():
+                    future.cancel()
+            pending_pages = [
+                page for future, page in futures.items()
+                if not future.done()
+            ]
+            if pending_pages:
+                num = len(pending_pages)
+                print(
+                    "Timeout while fetching monitored pages; "
+                    f"cancelled {num} pending request(s): {pending_pages}"
                 )
-                p_content = p_data.get("source")
-                p_date = p_data.get("timestamp")
-                p_key = f"content_{p_name}"
-
-                if p_content:
-                    if _is_page_closed(p_content):
-                        state.dynamic_monitored_pages.discard(p_name)
-
-                    p_old = state.content_hashes.get(p_key)
-                    p_new = get_content_hash(p_content)
-                    state.content_hashes[p_key] = p_new
-                    if p_old != p_new:
-                        p_snap = update_snapshot(
-                            page_name=p_name,
-                            current_content=p_content,
-                            snapshots=snapshots,
-                            timestamp=p_date
-                        )
-                        updated_snapshots[p_name] = p_snap
-
-                if event:
-                    evt_snap = updated_snapshots.get(p_name)
-                    diff_prev = get_content_diff_preview(evt_snap)
-                    if (diff_prev or event.is_initial):
-                        evt = Event(
-                            title=event.title,
-                            url=event.url,
-                            page_name=event.page_name,
-                            date=event.date,
-                            diff_preview=diff_prev,
-                            is_initial=event.is_initial
-                        )
-                        events.append(evt)
-            except (
-                OSError,
-                ValueError,
-                TimeoutError
-            ) as e:
-                print(f"Error getting page '{p_name}': {e}")
 
 
 def _create_wiki_client(cfg: Config) -> WikiClient:
