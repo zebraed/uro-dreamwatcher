@@ -23,6 +23,7 @@ from .types import SecretStr
 
 
 MAX_WORKERS = 8
+_PAGE_LINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
 
 
 @dataclass(frozen=True)
@@ -74,7 +75,7 @@ def prune_state(seen: dict[str, str], max_items: int):
         del seen[key]
 
 
-def filter_links(_item, _state: State, _mode: str):
+def _filter_links(_item, _state: State, _mode: str):
     """TODO: Implement filtering.
     Filter items based on mode.
 
@@ -101,12 +102,7 @@ def _extract_page_names_from_diff(diff_text: str) -> list[str]:
     Returns:
         list[str]: List of extracted page names.
     """
-    page_names = []
-    pattern = r"\[\[([^\]]+)\]\]"
-    matches = re.findall(pattern, diff_text)
-    for match in matches:
-        page_names.append(match)
-    return page_names
+    return _PAGE_LINK_RE.findall(diff_text)
 
 
 def _is_page_closed(page_content: str) -> bool:
@@ -249,7 +245,7 @@ def _check_monitored_pages(
                 )
 
 
-def _create_wiki_client(cfg: Config) -> WikiClient:
+def create_wiki_client(cfg: Config) -> WikiClient:
     """
     Create a WikiClient instance.
 
@@ -265,7 +261,11 @@ def _create_wiki_client(cfg: Config) -> WikiClient:
 
 
 def get_specific_pages_updates(
-    cfg: Config, state: State, client: WikiClient
+    cfg: Config,
+    state: State,
+    client: WikiClient,
+    snapshots: dict,
+    updated_snapshots: dict,
 ) -> list[Event]:
     """
     Get updates for specific pages by monitoring RecentChanges.
@@ -274,6 +274,8 @@ def get_specific_pages_updates(
         cfg: Configuration object.
         state: Current state object.
         client: WikiClient instance.
+        snapshots: Current snapshots dictionary.
+        updated_snapshots: Dictionary to store updated snapshots.
 
     Returns:
         list[Event]: List of events for updated pages.
@@ -282,11 +284,7 @@ def get_specific_pages_updates(
 
     if not all_monitored_pages:
         return []
-
-    cfg.snapshots_dir.mkdir(parents=True, exist_ok=True)
-    snapshots = load_snapshots(cfg.snapshots_dir / "snapshots.json")
     events = []
-    updated_snapshots = {}
 
     page_name = "RecentChanges"
     try:
@@ -362,10 +360,6 @@ def get_specific_pages_updates(
 
     except (OSError, ValueError, TimeoutError) as e:
         print(f"Error getting RecentChanges: {e}")
-
-    if updated_snapshots:
-        snapshots.update(updated_snapshots)
-        save_snapshots(cfg.snapshots_dir / "snapshots.json", snapshots)
 
     return events
 
@@ -516,7 +510,11 @@ def _process_updated_pages(
 
 
 def get_recent_created_updates(
-    cfg: Config, state: State, client: WikiClient
+    cfg: Config,
+    state: State,
+    client: WikiClient,
+    snapshots: dict,
+    updated_snapshots: dict,
 ) -> list[Event]:
     """
     Get updates from the RecentCreated page.
@@ -525,17 +523,15 @@ def get_recent_created_updates(
         cfg: Configuration object.
         state: Current state object.
         client: WikiClient instance.
+        snapshots: Current snapshots dictionary.
+        updated_snapshots: Dictionary to store updated snapshots.
 
     Returns:
         list[Event]: List of events for newly created pages.
     """
     if not cfg.monitor_recent_created:
         return []
-
-    cfg.snapshots_dir.mkdir(parents=True, exist_ok=True)
-    snapshots = load_snapshots(cfg.snapshots_dir / "snapshots.json")
     events = []
-    updated_snapshots = {}
 
     page_name = "RecentCreated"
     try:
@@ -577,10 +573,6 @@ def get_recent_created_updates(
                 )
     except (OSError, ValueError, TimeoutError) as e:
         print(f"Error getting page '{page_name}': {e}")
-
-    if updated_snapshots:
-        snapshots.update(updated_snapshots)
-        save_snapshots(cfg.snapshots_dir / "snapshots.json", snapshots)
 
     return events
 
@@ -648,7 +640,7 @@ def _check_page_data(
     return None
 
 
-def _clean_monitored_state(
+def clean_monitored_state(
     seen: dict[str, str],
     content_hashes: dict[str, str],
     cfg: Config,
@@ -712,13 +704,26 @@ def run(cfg: Config) -> int:
 
     events_to_send = []
 
-    wiki_client = _create_wiki_client(cfg)
+    wiki_client = create_wiki_client(cfg)
 
-    page_events = get_specific_pages_updates(cfg, state, wiki_client)
+    cfg.snapshots_dir.mkdir(parents=True, exist_ok=True)
+    snapshots_path = cfg.snapshots_dir / "snapshots.json"
+    snapshots = load_snapshots(snapshots_path)
+    updated_snapshots: dict = {}
+
+    page_events = get_specific_pages_updates(
+        cfg, state, wiki_client, snapshots, updated_snapshots
+    )
     events_to_send.extend(page_events)
 
-    recent_created_events = get_recent_created_updates(cfg, state, wiki_client)
+    recent_created_events = get_recent_created_updates(
+        cfg, state, wiki_client, snapshots, updated_snapshots
+    )
     events_to_send.extend(recent_created_events)
+
+    if updated_snapshots:
+        snapshots.update(updated_snapshots)
+        save_snapshots(snapshots_path, snapshots)
 
     if not events_to_send:
         return 0
@@ -732,7 +737,7 @@ def run(cfg: Config) -> int:
         page_key = normalize_link(f"page/{event.page_name}")
         updated_seen[page_key] = event_date
 
-    updated_seen, updated_hashes = _clean_monitored_state(
+    updated_seen, updated_hashes = clean_monitored_state(
         updated_seen,
         state.content_hashes,
         cfg,
