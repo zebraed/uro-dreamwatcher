@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 from urllib.parse import quote
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from .types import SecretStr
 
@@ -34,7 +36,23 @@ class WikiClient:
     def __init__(self, cfg: WikiApiConfig, auth: WikiAuth):
         self._cfg = cfg
         self._auth = auth
-        self._session = requests.session()
+        self._session = requests.Session()
+
+        retries = Retry(
+            total=3,
+            connect=3,
+            read=3,
+            backoff_factor=0.5,
+            status_forcelist=(429, 500, 502, 503, 504),
+            allowed_methods=("GET", "POST"),
+            raise_on_status=False,
+        )
+        adapter = HTTPAdapter(max_retries=retries,
+                              pool_connections=10,
+                              pool_maxsize=10
+                              )
+        self._session.mount("https://", adapter)
+        self._session.mount("http://", adapter)
         self._token: Optional[SecretStr] = None
 
     def list_pages(self) -> Dict[str, Any]:
@@ -125,10 +143,27 @@ class WikiClient:
         }
         if token:
             headers["Authorization"] = f"Bearer {token}"
-        resp = self._session.request(method, url, headers=headers,
-                                     json=json,
-                                     timeout=self._cfg.timeout_sec
-                                     )
+        resp = self._session.request(
+            method,
+            url,
+            headers=headers,
+            json=json,
+            timeout=self._cfg.timeout_sec,
+        )
+
+        # If token expired/invalid, refresh once and retry
+        if resp.status_code in (401, 403) and token:
+            self._token = None
+            new_token = self._get_token()
+            headers["Authorization"] = f"Bearer {new_token}"
+            resp = self._session.request(
+                method,
+                url,
+                headers=headers,
+                json=json,
+                timeout=self._cfg.timeout_sec,
+            )
+
         if resp.status_code >= 400:
             body = (resp.text or "")[:300]
             raise ApiError(f"HTTP {resp.status_code}: {body}")
