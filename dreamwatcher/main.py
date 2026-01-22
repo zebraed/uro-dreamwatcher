@@ -23,7 +23,7 @@ def main():
     wiki_url_base = os.environ.get("WIKIWIKI_URL_BASE", "").strip()
     api_key_id = SecretStr(os.environ.get("WIKIWIKI_API_KEY_ID", "").strip())
     api_secret = SecretStr(os.environ.get("WIKIWIKI_API_SECRET", "").strip())
-    rss_url = os.environ.get("WIKIWIKI_RSS_URL", "").strip()
+    rss_urls_str = os.environ.get("WIKIWIKI_RSS_URLS", "").strip()
     webhook_url = SecretStr(os.environ.get("DISCORD_WEBHOOK_URL", "").strip())
     state_path = os.environ.get("STATE_PATH", "state.json").strip()
     snapshots_dir = os.environ.get("SNAPSHOTS_DIR_PATH", ".snapshots").strip()
@@ -61,16 +61,20 @@ def main():
         if name.strip()
     ]
 
+    rss_urls = [
+        url.strip() for url in rss_urls_str.split(",")
+        if url.strip()
+    ]
+
     wiki_url = f"{wiki_url_base.rstrip('/')}/{wiki_id}/"
 
     cfg = Config(
-        source="api",
         wiki_id=wiki_id,
         api_key_id=api_key_id,
         api_secret=api_secret,
         discord_webhook_url=webhook_url,
         state_path=Path(state_path),
-        rss_url=rss_url,
+        rss_urls=rss_urls,
         page_names=page_names,
         wiki_url=wiki_url,
         snapshots_dir=Path(snapshots_dir),

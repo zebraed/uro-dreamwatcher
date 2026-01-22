@@ -31,26 +31,24 @@ class Config:
     Configuration for watcher.
 
     Attributes:
-        source: The source of the items.
         wiki_id: The ID of the wiki.
         api_key_id: The API key ID.
         api_secret: The API secret.
         discord_webhook_url: The URL of the Discord webhook.
         state_path: The path to the state file.
-        rss_url: The URL of the RSS feed. # Not implemented yet
+        rss_urls: List of RSS URLs to monitor.
         page_names: List of specific page names to monitor.
         wiki_url: The URL of the wiki.
         snapshots_dir: The directory to store page snapshots.
         monitor_recent_created: Whether to monitor the RecentCreated page.
         auto_track_pattern: Pattern to auto-track pages from RecentCreated.
     """
-    source: str
     wiki_id: str
     api_key_id: SecretStr = field(repr=False)
     api_secret: SecretStr = field(repr=False)
     discord_webhook_url: SecretStr = field(repr=False)
     state_path: Path
-    rss_url: str = ""
+    rss_urls: list[str] = field(default_factory=list)
     page_names: list[str] = field(default_factory=list)
     wiki_url: str = ""
     snapshots_dir: Path = field(default_factory=lambda: Path(".snapshots"))
@@ -174,7 +172,9 @@ def _check_monitored_pages(
         updated_snapshots: Dictionary to store updated snapshots.
         events: List to append events to.
     """
-    max_workers = min(MAX_WORKERS, max(1, len(pages_to_check)))
+    if not pages_to_check:
+        return
+    max_workers = min(MAX_WORKERS, len(pages_to_check))
     per_batch_timeout = 10
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
