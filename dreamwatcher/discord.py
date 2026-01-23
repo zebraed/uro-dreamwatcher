@@ -13,7 +13,9 @@ def _format_date(iso_date_str: Optional[str]) -> str:
         return ""
     try:
         dt = datetime.fromisoformat(iso_date_str)
-        return dt.strftime("%Y年%-m月%-d日 %H時%M分")
+        month = dt.month
+        day = dt.day
+        return dt.strftime(f"%Y年{month}月{day}日 %H時%M分")
     except (ValueError, AttributeError):
         return iso_date_str
 
