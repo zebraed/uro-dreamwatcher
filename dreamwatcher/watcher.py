@@ -211,8 +211,12 @@ def _check_monitored_pages(
                             updated_snapshots[p_name] = p_snap
 
                     if event:
-                        evt_snap = updated_snapshots.get(p_name)
-                        diff_prev = get_content_diff_preview(evt_snap)
+                        diff_prev = None
+                        if not event.is_initial:
+                            evt_snap = updated_snapshots.get(p_name)
+                            if evt_snap:
+                                diff_prev = get_content_diff_preview(evt_snap)
+
                         if (diff_prev or event.is_initial):
                             evt = Event(
                                 title=event.title,
@@ -229,6 +233,7 @@ def _check_monitored_pages(
                     TimeoutError
                 ) as e:
                     print(f"Error getting page '{p_name}': {e}")
+
         except FuturesTimeoutError:
             for future in futures:
                 if not future.done():
