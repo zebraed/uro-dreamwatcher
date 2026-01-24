@@ -66,7 +66,7 @@ def main():
         if url.strip()
     ]
 
-    wiki_url = f"{wiki_url_base.rstrip('/')}/{wiki_id}/"
+    wiki_url = f"{wiki_url_base.rstrip("/")}/{wiki_id}/"
 
     cfg = Config(
         wiki_id=wiki_id,

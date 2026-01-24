@@ -22,15 +22,15 @@ def _filter_wiki_syntax(diff) -> list[str]:
     """
     result = []
     for line in diff:
-        if not line.startswith('+'):
+        if not line.startswith("+"):
             continue
         # Skip comment lines
-        if line.lstrip().startswith('//'):
+        if line.lstrip().startswith("//"):
             continue
         # Remove prefix
         content = line[1:]
         # remove leading dash
-        content = content.lstrip('- ')
+        content = content.lstrip("- ")
         # new date
         filtered = re.sub(r"&\w+([^;]*);", r"\1", content)
         # color
@@ -52,7 +52,7 @@ def _filter_wiki_syntax(diff) -> list[str]:
         # anchor link
         filtered = re.sub(r"\s*\[#[^\]]+\]", "", filtered)
         # Skip diff header
-        if filtered.startswith('+'):
+        if filtered.startswith("+"):
             continue
         result.append(filtered)
 
@@ -110,7 +110,7 @@ def get_content_diff_preview(
         return None
 
     diff_text = _convert_links(display_diff)
-    first_line = diff_text.split('\n')[0]
+    first_line = diff_text.split("\n")[0]
     parts = re.split(r"(\[[^\]]+\]\([^\)]+\))", first_line)
     result = []
     char_count = 0
@@ -182,7 +182,7 @@ def get_display_diff(raw_diff):
     if not raw_diff:
         return None
 
-    diff_lines = raw_diff.split('\n')
+    diff_lines = raw_diff.split("\n")
     added_lines = _filter_wiki_syntax(diff_lines)
 
     return "\n".join(added_lines) if added_lines else None

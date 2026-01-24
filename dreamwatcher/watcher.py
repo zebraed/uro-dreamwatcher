@@ -103,8 +103,8 @@ def _extract_page_names_from_diff(diff_text: str) -> list[str]:
         list[str]: List of extracted page names.
     """
     page_names = []
-    for line in diff_text.split('\n'):
-        if line.startswith('+') and not line.startswith('+++'):
+    for line in diff_text.split("\n"):
+        if line.startswith("+") and not line.startswith("+++"):
             matches = _PAGE_LINK_RE.findall(line)
             page_names.extend(matches)
     return page_names
@@ -311,7 +311,7 @@ def get_specific_pages_updates(
 
             if is_initial:
                 page_url = (
-                    f"{cfg.wiki_url.rstrip('/')}/?{page_name}"
+                    f"{cfg.wiki_url.rstrip("/")}/?{page_name}"
                     if cfg.wiki_url
                     else page_name
                 )
@@ -381,7 +381,7 @@ def _process_initial_pages(
     client: WikiClient,
     events: list
 ) -> None:
-    lines = page_content.split('\n')
+    lines = page_content.split("\n")
     auto_tracked_pages = []
     for line in lines:
         page_names = _extract_page_names_from_diff(line)
@@ -621,7 +621,7 @@ def _check_page_data(
     page_content = page_data.get("source")
 
     page_url = (
-        f"{cfg.wiki_url.rstrip('/')}/?{page_name}"
+        f"{cfg.wiki_url.rstrip("/")}/?{page_name}"
         if cfg.wiki_url
         else page_name
     )
