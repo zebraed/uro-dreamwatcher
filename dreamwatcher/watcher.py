@@ -407,6 +407,10 @@ def _process_initial_pages(
                             auto_tracked_pages.append(
                                 created_page_name
                             )
+                            content_key = f"content_{created_page_name}"
+                            state.content_hashes[content_key] = (
+                                get_content_hash(page_content_for_check)
+                            )
                 except (
                     OSError, ValueError, TimeoutError
                 ) as e:
@@ -471,6 +475,10 @@ def _process_updated_pages(
                         ):
                             auto_tracked_pages.append(
                                 created_page_name
+                            )
+                            content_key = f"content_{created_page_name}"
+                            state.content_hashes[content_key] = (
+                                get_content_hash(page_content_for_check)
                             )
                         state.dynamic_monitored_pages.add(
                             created_page_name
