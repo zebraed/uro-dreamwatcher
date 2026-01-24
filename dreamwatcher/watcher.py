@@ -102,7 +102,12 @@ def _extract_page_names_from_diff(diff_text: str) -> list[str]:
     Returns:
         list[str]: List of extracted page names.
     """
-    return _PAGE_LINK_RE.findall(diff_text)
+    page_names = []
+    for line in diff_text.split('\n'):
+        if line.startswith('+') and not line.startswith('+++'):
+            matches = _PAGE_LINK_RE.findall(line)
+            page_names.extend(matches)
+    return page_names
 
 
 def _is_page_closed(page_content: str) -> bool:
