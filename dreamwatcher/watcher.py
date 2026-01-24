@@ -217,16 +217,15 @@ def _check_monitored_pages(
                             if evt_snap:
                                 diff_prev = get_content_diff_preview(evt_snap)
 
-                        if (diff_prev or event.is_initial):
-                            evt = Event(
-                                title=event.title,
-                                url=event.url,
-                                page_name=event.page_name,
-                                date=event.date,
-                                diff_preview=diff_prev,
-                                is_initial=event.is_initial
-                            )
-                            events.append(evt)
+                        evt = Event(
+                            title=event.title,
+                            url=event.url,
+                            page_name=event.page_name,
+                            date=event.date,
+                            diff_preview=diff_prev,
+                            is_initial=event.is_initial
+                        )
+                        events.append(evt)
                 except (
                     OSError,
                     ValueError,
