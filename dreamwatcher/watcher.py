@@ -163,6 +163,49 @@ def _matches_pattern(page_name: str, patterns: list[str]) -> bool:
     return False
 
 
+def _auto_track_matching_pages(
+    page_names: list[str],
+    cfg: Config,
+    state: State,
+    client: WikiClient
+) -> list[str]:
+    """
+    Auto-track pages that match auto_track_patterns.
+
+    Args:
+        page_names: List of page names to check.
+        cfg: Configuration object.
+        state: Current state object.
+        client: WikiClient instance.
+
+    Returns:
+        list[str]: List of newly auto-tracked page names.
+    """
+    if not cfg.auto_track_patterns:
+        return []
+
+    auto_tracked_pages = []
+    for page_name in page_names:
+        if not _matches_pattern(page_name, cfg.auto_track_patterns):
+            continue
+        if page_name in state.dynamic_monitored_pages:
+            continue
+        try:
+            page_data = client.get_page(page_name)
+            page_content = page_data.get("source")
+            if page_content and not _is_page_closed(page_content):
+                state.dynamic_monitored_pages.add(page_name)
+                content_key = f"content_{page_name}"
+                state.content_hashes[content_key] = (
+                    get_content_hash(page_content)
+                )
+                auto_tracked_pages.append(page_name)
+        except (OSError, ValueError, TimeoutError) as e:
+            print(f"Error checking page '{page_name}': {e}")
+
+    return auto_tracked_pages
+
+
 def _check_monitored_pages(
     pages_to_check: list[str],
     client: WikiClient,
@@ -407,6 +450,27 @@ def get_recent_changes_updates(
                         updated_snapshots,
                         events
                     )
+
+                auto_tracked_pages = _auto_track_matching_pages(
+                    updated_page_names, cfg, state, client
+                )
+                if auto_tracked_pages:
+                    page_list = "\n".join(
+                        [f"・{page}" for page in auto_tracked_pages]
+                    )
+                    tracked_event = Event(
+                        title=(
+                            f"{Emoji.initial} "
+                            f"ページが{len(auto_tracked_pages)}件 "
+                            "通知登録されました"
+                        ),
+                        url=f"{cfg.wiki_url.rstrip('/')}/?RecentChanges",
+                        page_name="RecentChanges",
+                        date=result.page_date,
+                        diff_preview=page_list,
+                        is_initial=False
+                    )
+                    events.append(tracked_event)
     except (OSError, ValueError, TimeoutError) as e:
         print(f"Error getting page 'RecentChanges': {e}")
 
@@ -491,56 +555,17 @@ def _process_updated_pages(
     page_names = _extract_page_names_from_diff(
         snapshot.diff
     )
-    newly_created_pages = []
-    auto_tracked_pages = []
-    for created_page_name in page_names:
-        newly_created_pages.append(created_page_name)
-        if _matches_pattern(
-            created_page_name,
-            cfg.auto_track_patterns
-        ):
-            try:
-                page_data_for_check = client.get_page(
-                    created_page_name
-                )
-                page_content_for_check = (
-                    page_data_for_check.get("source")
-                )
-                if page_content_for_check:
-                    if not _is_page_closed(
-                        page_content_for_check
-                    ):
-                        if created_page_name not in (
-                            state.dynamic_monitored_pages
-                        ):
-                            auto_tracked_pages.append(
-                                created_page_name
-                            )
-                            content_key = f"content_{created_page_name}"
-                            state.content_hashes[content_key] = (
-                                get_content_hash(page_content_for_check)
-                            )
-                        state.dynamic_monitored_pages.add(
-                            created_page_name
-                        )
-            except (
-                OSError, ValueError, TimeoutError
-            ) as e:
-                print(
-                    f"Error checking page "
-                    f"'{created_page_name}': {e}"
-                )
 
-    if newly_created_pages:
+    if page_names:
         page_list = "\n".join(
-            [f"・{page}" for page in newly_created_pages]
+            [f"・{page}" for page in page_names]
         )
         created_event = Event(
             title=(
                 f"{Emoji.new} "
-                f"ページが{len(newly_created_pages)}件 新規作成されました"
+                f"ページが{len(page_names)}件 新規作成されました"
             ),
-            url=cfg.wiki_url if cfg.wiki_url else "",
+            url=f"{cfg.wiki_url.rstrip('/')}/?RecentCreated",
             page_name="RecentCreated",
             date=page_date,
             diff_preview=page_list,
@@ -548,6 +573,9 @@ def _process_updated_pages(
         )
         events.append(created_event)
 
+    auto_tracked_pages = _auto_track_matching_pages(
+        page_names, cfg, state, client
+    )
     if auto_tracked_pages:
         page_list = "\n".join(
             [f"・{page}" for page in auto_tracked_pages]
@@ -557,7 +585,7 @@ def _process_updated_pages(
                 f"{Emoji.initial} "
                 f"ページが{len(auto_tracked_pages)}件 通知登録されました"
             ),
-            url=cfg.wiki_url if cfg.wiki_url else "",
+            url=f"{cfg.wiki_url.rstrip('/')}/?RecentCreated",
             page_name="RecentCreated",
             date=page_date,
             diff_preview=page_list,
