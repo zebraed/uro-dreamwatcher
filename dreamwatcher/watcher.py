@@ -17,7 +17,7 @@ from .state import (
 )
 from .snapshot import (
     load_snapshots, save_snapshots, update_snapshot,
-    get_content_diff_preview
+    get_content_diff_preview, PageSnapshot
 )
 from .types import SecretStr
 
@@ -58,6 +58,17 @@ class Config:
 
     def __repr__(self) -> str:
         return "<Config: hidden>"
+
+
+@dataclass
+class PageCheckResult:
+    """Result of checking a page."""
+    page_name: str
+    is_initial: bool
+    has_changed: bool
+    snapshot: Optional[PageSnapshot]
+    page_content: Optional[str]
+    page_date: Optional[str]
 
 
 def normalize_link(link: str) -> str:
@@ -269,7 +280,60 @@ def create_wiki_client(cfg: Config) -> WikiClient:
     return WikiClient(api_cfg, auth)
 
 
-def get_specific_pages_updates(
+def _fetch_page(
+    page_name: str,
+    client: WikiClient,
+    state: State,
+    snapshots: dict,
+    updated_snapshots: dict
+) -> PageCheckResult:
+    """
+    Fetch a page.
+
+    Args:
+        page_name: The name of the page.
+        client: The WikiClient instance.
+        state: The state object.
+        snapshots: The snapshots dictionary.
+        updated_snapshots: The updated snapshots dictionary.
+
+    Returns:
+        PageCheckResult: The page check result.
+    """
+    page_data = client.get_page(page_name)
+    page_content = page_data.get("source")
+    page_date = page_data.get("timestamp")
+
+    content_key = f"content_{page_name}"
+    old_hash = state.content_hashes.get(content_key)
+    new_hash = get_content_hash(page_content) if page_content else None
+    if new_hash:
+        state.content_hashes[content_key] = new_hash
+
+    is_initial = old_hash is None
+    has_changed = old_hash != new_hash
+
+    snapshot = None
+    if has_changed and page_content:
+        snapshot = update_snapshot(
+            page_name=page_name,
+            current_content=page_content,
+            snapshots=snapshots,
+            timestamp=page_date
+        )
+        updated_snapshots[page_name] = snapshot
+
+    return PageCheckResult(
+        page_name=page_name,
+        is_initial=is_initial,
+        has_changed=has_changed,
+        snapshot=snapshot,
+        page_content=page_content,
+        page_date=page_date
+        )
+
+
+def get_recent_changes_updates(
     cfg: Config,
     state: State,
     client: WikiClient,
@@ -295,80 +359,56 @@ def get_specific_pages_updates(
         return []
     events = []
 
-    page_name = "RecentChanges"
     try:
-        page_data = client.get_page(page_name)
-        page_content = page_data.get("source")
-        page_date = page_data.get("timestamp")
-        content_key = f"content_{page_name}"
+        result = _fetch_page(
+            page_name="RecentChanges",
+            client=client,
+            state=state,
+            snapshots=snapshots,
+            updated_snapshots=updated_snapshots
+        )
 
-        if page_content:
-            old_hash = state.content_hashes.get(content_key)
-            new_hash = get_content_hash(page_content)
-            state.content_hashes[content_key] = new_hash
+        if result.is_initial:
+            page_url = (
+                f"{cfg.wiki_url.rstrip("/")}/?{result.page_name}"
+                if cfg.wiki_url
+                else result.page_name
+            )
+            initial_event = Event(
+                title=(
+                    f"{Emoji.initial} 【RecentChanges】 "
+                    "の通知が設定されました。"
+                ),
+                url=page_url,
+                page_name=result.page_name,
+                date=result.page_date,
+                is_initial=True
+            )
+            events.append(initial_event)
 
-            is_initial = old_hash is None
-
-            if is_initial:
-                page_url = (
-                    f"{cfg.wiki_url.rstrip("/")}/?{page_name}"
-                    if cfg.wiki_url
-                    else page_name
-                )
-                initial_event = Event(
-                    title=(
-                        f"{Emoji.initial} 【RecentChanges】 "
-                        "の通知が設定されました。"
-                    ),
-                    url=page_url,
-                    page_name=page_name,
-                    date=page_date,
-                    is_initial=True
-                )
-                events.append(initial_event)
-
-                timestamp = page_date
-                snapshot = update_snapshot(
-                    page_name=page_name,
-                    current_content=page_content,
-                    snapshots=snapshots,
-                    timestamp=timestamp
-                )
-                updated_snapshots[page_name] = snapshot
-
-            if old_hash != new_hash and not is_initial:
-                timestamp = page_date
-                snapshot = update_snapshot(
-                    page_name=page_name,
-                    current_content=page_content,
-                    snapshots=snapshots,
-                    timestamp=timestamp
-                )
-                updated_snapshots[page_name] = snapshot
-
-                if snapshot and snapshot.diff:
-                    updated_page_names = (
-                        _extract_page_names_from_diff(
-                            snapshot.diff
-                        )
+        if result.has_changed and result.snapshot:
+            if result.snapshot.diff:
+                updated_page_names = (
+                    _extract_page_names_from_diff(
+                        result.snapshot.diff
                     )
-                    pages_to_check = [
-                        p for p in updated_page_names
-                        if p in all_monitored_pages
-                    ]
-                    if pages_to_check:
-                        _check_monitored_pages(
-                            pages_to_check,
-                            client,
-                            state,
-                            cfg,
-                            snapshots,
-                            updated_snapshots,
-                            events
-                        )
-
+                )
+                pages_to_check = [
+                    p for p in updated_page_names
+                    if p in all_monitored_pages
+                ]
+                if pages_to_check:
+                    _check_monitored_pages(
+                        pages_to_check,
+                        client,
+                        state,
+                        cfg,
+                        snapshots,
+                        updated_snapshots,
+                        events
+                    )
     except (OSError, ValueError, TimeoutError) as e:
-        print(f"Error getting RecentChanges: {e}")
+        print(f"Error getting page 'RecentChanges': {e}")
 
     return events
 
@@ -550,46 +590,44 @@ def get_recent_created_updates(
         return []
     events = []
 
-    page_name = "RecentCreated"
     try:
-        page_data = client.get_page(page_name)
-        event = _check_page_data(
-            page_name, page_data, state, cfg, event_type="created"
+        result = _fetch_page(
+            page_name="RecentCreated",
+            client=client,
+            state=state,
+            snapshots=snapshots,
+            updated_snapshots=updated_snapshots
         )
-        page_content = page_data.get("source")
-        page_date = page_data.get("timestamp")
-        content_key = f"content_{page_name}"
 
-        if page_content:
-            old_hash = state.content_hashes.get(content_key)
-            new_hash = get_content_hash(page_content)
-            state.content_hashes[content_key] = new_hash
-            if old_hash != new_hash:
-                timestamp = page_date
-                snapshot = update_snapshot(
-                    page_name=page_name,
-                    current_content=page_content,
-                    snapshots=snapshots,
-                    timestamp=timestamp
-                )
-                updated_snapshots[page_name] = snapshot
-
-        if event:
-            if event.is_initial:
-                if page_content:
-                    _process_initial_pages(
-                        page_content, page_date, cfg, state,
-                        client, events
-                    )
-                events.append(event)
-            else:
-                snapshot = updated_snapshots.get(page_name)
-                _process_updated_pages(
-                    snapshot, page_date, cfg, state,
+        if result.is_initial:
+            if result.page_content:
+                _process_initial_pages(
+                    result.page_content, result.page_date, cfg, state,
                     client, events
                 )
+            page_url = (
+                f"{cfg.wiki_url.rstrip('/')}/?{result.page_name}"
+                if cfg.wiki_url
+                else result.page_name
+            )
+            initial_event = Event(
+                title=(
+                    f"{Emoji.initial} 【RecentCreated】 "
+                    "の通知が設定されました。"
+                ),
+                url=page_url,
+                page_name=result.page_name,
+                date=result.page_date,
+                is_initial=True
+            )
+            events.append(initial_event)
+        elif result.has_changed:
+            _process_updated_pages(
+                result.snapshot, result.page_date, cfg, state,
+                client, events
+            )
     except (OSError, ValueError, TimeoutError) as e:
-        print(f"Error getting page '{page_name}': {e}")
+        print(f"Error getting page 'RecentCreated': {e}")
 
     return events
 
@@ -728,7 +766,7 @@ def run(cfg: Config) -> int:
     snapshots = load_snapshots(snapshots_path)
     updated_snapshots: dict = {}
 
-    page_events = get_specific_pages_updates(
+    page_events = get_recent_changes_updates(
         cfg, state, wiki_client, snapshots, updated_snapshots
     )
     events_to_send.extend(page_events)
