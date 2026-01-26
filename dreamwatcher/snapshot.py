@@ -22,38 +22,54 @@ def _filter_wiki_syntax(diff) -> list[str]:
     """
     result = []
     for line in diff:
-        if not line.startswith("+"):
+        # Ignore file headers
+        if not line.startswith("+") or line.startswith("+++"):
+            continue
+        # Remove the diff marker
+        content = line[1:].rstrip("\n")
+        # Skip empty lines
+        if not content.strip():
             continue
         # Skip comment lines
-        if line.lstrip().startswith("//"):
+        if content.lstrip().startswith("//"):
             continue
-        # Remove prefix
-        content = line[1:]
-        # remove leading dash
-        content = content.lstrip("- ")
-        # new date
-        filtered = re.sub(r"&\w+([^;]*);", r"\1", content)
+        # Drop common no-content macros
+        if content.strip() in {"#br", "#br;"}:
+            continue
+        # Convert wiki emphasis markers
+        filtered = content.replace("''", "")
         # color
-        filtered = re.sub(r"&color\([^)]*\)\{([^}]*)\};", r"\1", filtered)
-        # color form
+        filtered = re.sub(r"&color\([^)]*\)\{([^}]*)\};?", r"\1", filtered)
         filtered = re.sub(r"&color\([^)]*\)", "", filtered)
         # size
-        filtered = re.sub(r"&size\([^)]*\)\{([^}]*)\};", r"\1", filtered)
+        filtered = re.sub(r"&size\([^)]*\)\{([^}]*)\};?", r"\1", filtered)
+        filtered = re.sub(r"&size\([^)]*\)", "", filtered)
+        # date
+        filtered = re.sub(r"&\w+([^;]*);", r"\1", filtered)
         # strikethrough
-        filtered = re.sub(r"%%[^%]*%%", "", filtered)
+        filtered = re.sub(r"%%([^%]*)%%", r"\1", filtered)
         # underline
-        filtered = re.sub(r"%%%[^%]*%%%", "", filtered)
-        # braces: extract content from {...}
+        filtered = re.sub(r"%%%([^%]*)%%%", r"\1", filtered)
+        # braces
         filtered = re.sub(r"\{([^}]*)\}", r"\1", filtered)
-        # line break
-        filtered = re.sub(r"&br\(\)", "", filtered)
-        # leading *
-        filtered = re.sub(r"^\*+", "", filtered)
-        # anchor link
+        # anchors
         filtered = re.sub(r"\s*\[#[^\]]+\]", "", filtered)
-        # Skip diff header
-        if filtered.startswith("+"):
+        # bullets
+        stripped = filtered.lstrip()
+        if stripped.startswith("--"):
+            filtered = re.sub(r"^\s*--\s*", "", filtered)
+        elif stripped.startswith("-"):
+            filtered = re.sub(r"^\s*-\s*", "", filtered)
+        # &br() and &br;
+        filtered = re.sub(r"&br\(\)", "", filtered)
+        filtered = re.sub(r"&br;", "", filtered)
+        # leading '*'
+        filtered = re.sub(r"^\*+\s*", "", filtered)
+        # cleanup
+        filtered = filtered.strip()
+        if not filtered:
             continue
+
         result.append(filtered)
 
     return result
