@@ -46,10 +46,10 @@ def _filter_wiki_syntax(diff) -> list[str]:
         filtered = re.sub(r"&size\([^)]*\)", "", filtered)
         # date
         filtered = re.sub(r"&\w+([^;]*);", r"\1", filtered)
-        # strikethrough
-        filtered = re.sub(r"%%([^%]*)%%", r"\1", filtered)
-        # underline
-        filtered = re.sub(r"%%%([^%]*)%%%", r"\1", filtered)
+        # strikethrough convert
+        filtered = re.sub(r"%%([^%]*)%%", r"~~\1~~", filtered)
+        # underline convert
+        filtered = re.sub(r"%%%([^%]*)%%%", r"__\1__", filtered)
         # braces
         filtered = re.sub(r"\{([^}]*)\}", r"\1", filtered)
         # anchors
