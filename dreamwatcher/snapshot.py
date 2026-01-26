@@ -36,6 +36,9 @@ def _filter_wiki_syntax(diff) -> list[str]:
         # Drop common no-content macros
         if content.strip() in {"#br", "#br;"}:
             continue
+        # Skip lines starting with #
+        if content.lstrip().startswith("#"):
+            continue
         # Convert wiki emphasis markers
         filtered = content.replace("''", "")
         # color
