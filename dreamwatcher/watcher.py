@@ -193,12 +193,16 @@ def _auto_track_matching_pages(
         try:
             page_data = client.get_page(page_name)
             page_content = page_data.get("source")
+            page_date = page_data.get("timestamp")
             if page_content and not _is_page_closed(page_content):
                 state.dynamic_monitored_pages.add(page_name)
                 content_key = f"content_{page_name}"
                 state.content_hashes[content_key] = (
                     get_content_hash(page_content)
                 )
+                page_key = normalize_link(f"page/{page_name}")
+                if page_date:
+                    state.seen[page_key] = page_date
                 auto_tracked_pages.append(page_name)
         except (OSError, ValueError, TimeoutError) as e:
             print(f"Error checking page '{page_name}': {e}")
@@ -501,6 +505,7 @@ def _process_initial_pages(
                     page_content_for_check = (
                         page_data_for_check.get("source")
                     )
+                    page_date_for_check = page_data_for_check.get("timestamp")
                     if page_content_for_check:
                         if not _is_page_closed(
                             page_content_for_check
@@ -515,6 +520,9 @@ def _process_initial_pages(
                             state.content_hashes[content_key] = (
                                 get_content_hash(page_content_for_check)
                             )
+                            page_key = normalize_link(f"page/{created_page_name}")
+                            if page_date_for_check:
+                                state.seen[page_key] = page_date_for_check
                 except (
                     OSError, ValueError, TimeoutError
                 ) as e:
