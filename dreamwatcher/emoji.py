@@ -8,3 +8,4 @@ class Emoji:
     date = "🕐"
     link = "🔗"
     error = "⚠️"
+    close = "🔚"
