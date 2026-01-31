@@ -253,6 +253,9 @@ def _check_monitored_pages(
                         state,
                         cfg
                     )
+                    if not event:
+                        continue
+
                     p_content = p_data.get("source")
                     p_date = p_data.get("timestamp")
                     p_key = f"content_{p_name}"
@@ -564,22 +567,22 @@ def _process_updated_pages(
         snapshot.diff
     )
 
-    if page_names:
-        page_list = "\n".join(
-            [f"・{page}" for page in page_names]
-        )
-        created_event = Event(
-            title=(
-                f"{Emoji.new} "
-                f"ページが{len(page_names)}件 新規作成されました"
-            ),
-            url=f"{cfg.wiki_url.rstrip('/')}/?RecentCreated",
-            page_name="RecentCreated",
-            date=page_date,
-            diff_preview=page_list,
-            is_initial=False
-        )
-        events.append(created_event)
+    # if page_names:
+    #     page_list = "\n".join(
+    #         [f"・{page}" for page in page_names]
+    #     )
+    #     created_event = Event(
+    #         title=(
+    #             f"{Emoji.new} "
+    #             f"ページが{len(page_names)}件 新規作成されました"
+    #         ),
+    #         url=f"{cfg.wiki_url.rstrip('/')}/?RecentCreated",
+    #         page_name="RecentCreated",
+    #         date=page_date,
+    #         diff_preview=page_list,
+    #         is_initial=False
+    #     )
+    #     events.append(created_event)
 
     auto_tracked_pages = _auto_track_matching_pages(
         page_names, cfg, state, client
@@ -701,9 +704,8 @@ def _check_page_data(
     )
 
     if event_type == "created":
-        page_event_title = f"{Emoji.new} 【{page_title}】 が新規作成されました。"
-    else:
-        page_event_title = f"{Emoji.update} 【{page_title}】 が更新されました。"
+        return None
+    page_event_title = f"{Emoji.update} 【{page_title}】 が更新されました。"
 
     is_page_first_run = f"content_{page_name}" not in state.content_hashes
 
