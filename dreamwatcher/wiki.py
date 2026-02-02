@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from dataclasses import dataclass, field
 from importlib.metadata import packages_distributions
+from pathlib import Path
 from typing import Any, Dict, Optional
 from urllib.parse import quote
 import requests
@@ -13,7 +14,9 @@ from .types import SecretStr
 def _project_name() -> str:
     pkg = (__package__ or "").split(".", maxsplit=1)[0]
     dists = packages_distributions().get(pkg, [])
-    return dists[0]
+    if dists:
+        return dists[0]
+    return Path(__file__).resolve().parent.parent.name
 
 
 class ApiError(RuntimeError):
@@ -144,8 +147,10 @@ class WikiClient:
             Dict[str, Any]: A dictionary containing the JSON data.
         """
         self._guard(method, url, allow_auth_post, allow_write)
+        project_name = _project_name()
+        print(f"User-Agent: {project_name}")
         headers = {
-            "User-Agent": _project_name(),
+            "User-Agent": project_name,
             "Accept": "application/json",
         }
         if token:
