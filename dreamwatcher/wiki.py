@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from dataclasses import dataclass, field
+from importlib.metadata import packages_distributions
 from typing import Any, Dict, Optional
 from urllib.parse import quote
 import requests
@@ -7,6 +8,12 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from .types import SecretStr
+
+
+def _project_name() -> str:
+    pkg = (__package__ or "").split(".", maxsplit=1)[0]
+    dists = packages_distributions().get(pkg, [])
+    return dists[0]
 
 
 class ApiError(RuntimeError):
@@ -138,7 +145,7 @@ class WikiClient:
         """
         self._guard(method, url, allow_auth_post, allow_write)
         headers = {
-            "User-Agent": "uro-dreamwatcher",
+            "User-Agent": _project_name(),
             "Accept": "application/json",
         }
         if token:

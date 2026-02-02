@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "uro-dreamwatcher"
+version = "1.1.0"
+description = "Monitor WikiWiki pages and notify changes to Discord."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.32.5",
+    "python-dotenv>=1.2.1",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["dreamwatcher*"]
