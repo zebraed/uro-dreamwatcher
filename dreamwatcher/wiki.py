@@ -65,6 +65,10 @@ class WikiClient:
         self._session.mount("http://", adapter)
         self._token: Optional[SecretStr] = None
 
+        self.project_name = _project_name()
+        print(f"User-Agent: {self.project_name}")
+
+
     def list_pages(self) -> Dict[str, Any]:
         """
         List all pages in the wiki.
@@ -147,10 +151,8 @@ class WikiClient:
             Dict[str, Any]: A dictionary containing the JSON data.
         """
         self._guard(method, url, allow_auth_post, allow_write)
-        project_name = _project_name()
-        print(f"User-Agent: {project_name}")
         headers = {
-            "User-Agent": project_name,
+            "User-Agent": self.project_name,
             "Accept": "application/json",
         }
         if token:
