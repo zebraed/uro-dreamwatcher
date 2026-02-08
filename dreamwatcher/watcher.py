@@ -43,6 +43,7 @@ class Config:
         snapshots_dir: The directory to store page snapshots.
         monitor_recent_created: Whether to monitor the RecentCreated page.
         auto_track_pattern: Pattern to auto-track pages from RecentCreated.
+        diff_full_pages: List of page names to diff full pages.
     """
     wiki_id: str
     api_key_id: SecretStr = field(repr=False)
@@ -55,6 +56,7 @@ class Config:
     snapshots_dir: Path = field(default_factory=lambda: Path(".snapshots"))
     monitor_recent_created: bool = True
     auto_track_patterns: list[str] = field(default_factory=list)
+    diff_full_pages: list[str] = field(default_factory=list)
 
     def __repr__(self) -> str:
         return "<Config: hidden>"
@@ -281,7 +283,10 @@ def _check_monitored_pages(
                         if not event.is_initial:
                             evt_snap = updated_snapshots.get(p_name)
                             if evt_snap:
-                                diff_prev = get_content_diff_preview(evt_snap)
+                                diff_prev = get_content_diff_preview(
+                                    evt_snap,
+                                    full_diff_page_names=cfg.diff_full_pages,
+                                )
                         if diff_prev:
                             evt = Event(
                                 title=event.title,

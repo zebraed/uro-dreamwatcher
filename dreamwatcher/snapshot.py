@@ -3,7 +3,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, Optional
 import difflib
 
 EDIT_SIMILARITY_THRESHOLD = 0.9
@@ -163,7 +163,8 @@ def _get_display_width(text: str) -> int:
 
 def get_content_diff_preview(
     snapshot: Optional["PageSnapshot"],
-    max_chars: int = 80
+    max_chars: int = 80,
+    full_diff_page_names: Optional[Iterable[str]] = None,
 ) -> Optional[str]:
     """
     Get preview of diff from snapshot.
@@ -171,6 +172,9 @@ def get_content_diff_preview(
     Args:
         snapshot: PageSnapshot object with diff
         max_chars: Maximum characters for preview
+        full_diff_page_names: Page namesfor which
+            _sequence_match() is skipped so every edit is shown. Default: all
+            pages use sequence match.
 
     Returns:
         Optional[str]: Preview of diff, or None if no diff available
@@ -178,7 +182,15 @@ def get_content_diff_preview(
     if not snapshot or not snapshot.diff:
         return None
 
-    display_diff = get_display_diff(snapshot.diff)
+    apply_sequence_match = True
+    if full_diff_page_names is not None:
+        names_lower = {n.lower() for n in full_diff_page_names}
+        if snapshot.page_name.lower() in names_lower:
+            apply_sequence_match = False
+    display_diff = get_display_diff(
+                                    snapshot.diff,
+                                    apply_sequence_match=apply_sequence_match
+                                    )
     if not display_diff:
         return None
 
@@ -241,23 +253,32 @@ def get_raw_diff(previous_content, current_content):
     return "\n".join(diff_lines) if diff_lines else None
 
 
-def get_display_diff(raw_diff: Optional[str]) -> Optional[str]:
+def get_display_diff(
+    raw_diff: Optional[str],
+    apply_sequence_match: bool = True,
+) -> Optional[str]:
     """
     Get display diff from raw diff.
 
     Args:
         raw_diff: Raw diff string.
+        apply_sequence_match: If True, treat added lines similar to removed
+            lines as edits and omit them. If False, show all added lines.
 
     Returns:
         Optional[str]: Display diff with wiki syntax filtered and
-                       edit-duplicates removed, or None if no content.
+                       edit-duplicates removed (when apply_sequence_match),
+                       or None if no content.
     """
     if not raw_diff:
         return None
 
     diff_lines = raw_diff.split("\n")
     removed_lines, added_lines = _parse_diff(diff_lines)
-    unique_added = _sequence_match(removed_lines, added_lines)
+    if apply_sequence_match:
+        unique_added = _sequence_match(removed_lines, added_lines)
+    else:
+        unique_added = added_lines
 
     return "\n".join(unique_added) if unique_added else None
 

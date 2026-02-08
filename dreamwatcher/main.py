@@ -39,6 +39,13 @@ def main():
         pattern.strip() for pattern in auto_track_patterns.split(",")
         if pattern.strip()
     ]
+    diff_full_pages_str = os.environ.get(
+        "WIKIWIKI_DIFF_FULL_PAGES", ""
+    ).strip().lower()
+    diff_full_pages = [
+        page.strip() for page in diff_full_pages_str.split(",")
+        if page.strip()
+    ]
 
     if not wiki_id:
         print("Error: WIKIWIKI_ID is not set")
@@ -79,7 +86,8 @@ def main():
         wiki_url=wiki_url,
         snapshots_dir=Path(snapshots_dir),
         monitor_recent_created=monitor_recent_created,
-        auto_track_patterns=auto_track_patterns
+        auto_track_patterns=auto_track_patterns,
+        diff_full_pages=diff_full_pages
         )
 
     return run(cfg)
