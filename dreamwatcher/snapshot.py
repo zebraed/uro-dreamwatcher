@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Optional
 import difflib
 
+EDIT_SIMILARITY_THRESHOLD = 0.8
+
 
 @dataclass(frozen=True)
 class PageSnapshot:
@@ -16,68 +18,117 @@ class PageSnapshot:
     diff: Optional[str] = None
 
 
-def _filter_wiki_syntax(diff) -> list[str]:
+def _normalize_diff_line(content: str) -> Optional[str]:
     """
-    Extract added lines from unified diff, filtering wiki syntax and comments.
+    Normalize diff line.
+
+    Args:
+        content: Content of diff line.
+
+    Returns:
+        Optional[str]: Normalized content of diff line, or None.
     """
-    result = []
-    for line in diff:
-        # Ignore file headers
-        if not line.startswith("+") or line.startswith("+++"):
-            continue
-        # Remove the diff marker
-        content = line[1:].rstrip("\n")
-        # Skip empty lines
-        if not content.strip():
-            continue
-        # Skip comment lines
-        if content.lstrip().startswith("//"):
-            continue
-        # Skip plug-in content lines
-        if content.lstrip().startswith("|"):
-            continue
-        # Drop common no-content macros
-        if content.strip() in {"#br", "#br;"}:
-            continue
-        # Skip lines starting with #
-        if content.lstrip().startswith("#"):
-            continue
-        # Convert wiki emphasis markers
-        filtered = content.replace("''", "")
-        # color
-        filtered = re.sub(r"&color\([^)]*\)\{([^}]*)\};?", r"\1", filtered)
-        filtered = re.sub(r"&color\([^)]*\)", "", filtered)
-        # size
-        filtered = re.sub(r"&size\([^)]*\)\{([^}]*)\};?", r"\1", filtered)
-        filtered = re.sub(r"&size\([^)]*\)", "", filtered)
-        # date
-        filtered = re.sub(r"&\w+([^;]*);", r"\1", filtered)
-        # strikethrough convert
-        filtered = re.sub(r"%%([^%]*)%%", r"~~\1~~", filtered)
-        # underline convert
-        filtered = re.sub(r"%%%([^%]*)%%%", r"__\1__", filtered)
-        # braces
-        filtered = re.sub(r"\{([^}]*)\}", r"\1", filtered)
-        # anchors
-        filtered = re.sub(r"\s*\[#[^\]]+\]", "", filtered)
-        # bullets
-        stripped = filtered.lstrip()
-        if stripped.startswith("--"):
-            filtered = re.sub(r"^\s*--\s*", "", filtered)
-        elif stripped.startswith("-"):
-            filtered = re.sub(r"^\s*-\s*", "", filtered)
-        # &br() and &br;
-        filtered = re.sub(r"&br\(\)", "", filtered)
-        filtered = re.sub(r"&br;", "", filtered)
-        # leading '*'
-        filtered = re.sub(r"^\*+\s*", "", filtered)
-        # cleanup
-        filtered = filtered.strip()
-        if not filtered:
-            continue
+    # Skip empty lines
+    if not content.strip():
+        return None
+    # Skip comment lines
+    if content.lstrip().startswith("//"):
+        return None
+    # Skip plug-in content lines
+    if content.lstrip().startswith("|"):
+        return None
+    # Drop common no-content macros
+    if content.strip() in {"#br", "#br;"}:
+        return None
+    # Skip lines starting with #
+    if content.lstrip().startswith("#"):
+        return None
 
-        result.append(filtered)
+    # Convert wiki emphasis markers
+    filtered = content.replace("''", "")
+    # color
+    filtered = re.sub(r"&color\([^)]*\)\{([^}]*)\};?", r"\1", filtered)
+    filtered = re.sub(r"&color\([^)]*\)", "", filtered)
+    # size
+    filtered = re.sub(r"&size\([^)]*\)\{([^}]*)\};?", r"\1", filtered)
+    filtered = re.sub(r"&size\([^)]*\)", "", filtered)
+    # date
+    filtered = re.sub(r"&\w+([^;]*);", r"\1", filtered)
+    # strikethrough convert
+    filtered = re.sub(r"%%([^%]*)%%", r"~~\1~~", filtered)
+    # underline convert
+    filtered = re.sub(r"%%%([^%]*)%%%", r"__\1__", filtered)
+    # braces
+    filtered = re.sub(r"\{([^}]*)\}", r"\1", filtered)
+    # anchors
+    filtered = re.sub(r"\s*\[#[^\]]+\]", "", filtered)
+    # bullets
+    stripped = filtered.lstrip()
+    if stripped.startswith("--"):
+        filtered = re.sub(r"^\s*--\s*", "", filtered)
+    elif stripped.startswith("-"):
+        filtered = re.sub(r"^\s*-\s*", "", filtered)
+    # &br() and &br;
+    filtered = re.sub(r"&br\(\)", "", filtered)
+    filtered = re.sub(r"&br;", "", filtered)
+    # leading '*'
+    filtered = re.sub(r"^\*+\s*", "", filtered)
+    # cleanup
+    filtered = filtered.strip()
+    return filtered if filtered else None
 
+
+def _parse_diff(
+    diff_lines: list[str]
+) -> tuple[list[str], list[str]]:
+    """
+    Parse diff into removed and added lines.
+
+    Args:
+        diff_lines: List of diff lines.
+
+    Returns:
+        tuple[list[str], list[str]]: Tuple of removed and added lines.
+    """
+    removed: list[str] = []
+    added: list[str] = []
+    for line in diff_lines:
+        # Skip header lines
+        if line.startswith("+++"):
+            continue
+        if line.startswith("---"):
+            continue
+        if line.startswith("-"):
+            content = line[1:].rstrip("\n")
+            normalized = _normalize_diff_line(content)
+            if normalized is not None:
+                removed.append(normalized)
+            continue
+        if line.startswith("+"):
+            content = line[1:].rstrip("\n")
+            normalized = _normalize_diff_line(content)
+            if normalized is not None:
+                added.append(normalized)
+    return removed, added
+
+
+def _sequence_match(
+    removed_lines: list[str],
+    added_lines: list[str],
+    threshold: float = EDIT_SIMILARITY_THRESHOLD,
+) -> list[str]:
+    if not removed_lines:
+        return list(added_lines)
+    result: list[str] = []
+    for added in added_lines:
+        is_edit = False
+        for removed in removed_lines:
+            ratio = difflib.SequenceMatcher(None, added, removed).ratio()
+            if ratio >= threshold:
+                is_edit = True
+                break
+        if not is_edit:
+            result.append(added)
     return result
 
 
@@ -190,7 +241,7 @@ def get_raw_diff(previous_content, current_content):
     return "\n".join(diff_lines) if diff_lines else None
 
 
-def get_display_diff(raw_diff):
+def get_display_diff(raw_diff: Optional[str]) -> Optional[str]:
     """
     Get display diff from raw diff.
 
@@ -198,16 +249,17 @@ def get_display_diff(raw_diff):
         raw_diff: Raw diff string.
 
     Returns:
-        Optional[str]: Display diff with wiki syntax filtered,
-                       or None if no content.
+        Optional[str]: Display diff with wiki syntax filtered and
+                       edit-duplicates removed, or None if no content.
     """
     if not raw_diff:
         return None
 
     diff_lines = raw_diff.split("\n")
-    added_lines = _filter_wiki_syntax(diff_lines)
+    removed_lines, added_lines = _parse_diff(diff_lines)
+    unique_added = _sequence_match(removed_lines, added_lines)
 
-    return "\n".join(added_lines) if added_lines else None
+    return "\n".join(unique_added) if unique_added else None
 
 
 def load_snapshots(path: Path) -> dict[str, PageSnapshot]:
