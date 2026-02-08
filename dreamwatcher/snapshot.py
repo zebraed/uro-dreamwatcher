@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 import difflib
 
-EDIT_SIMILARITY_THRESHOLD = 0.8
+EDIT_SIMILARITY_THRESHOLD = 0.9
 
 
 @dataclass(frozen=True)
