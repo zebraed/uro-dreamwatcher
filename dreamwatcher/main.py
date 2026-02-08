@@ -46,6 +46,15 @@ def main():
         page.strip() for page in diff_full_pages_str.split(",")
         if page.strip()
     ]
+    page_names = [
+        name.strip() for name in page_names_str.split(",")
+        if name.strip()
+    ]
+    rss_urls = [
+        url.strip() for url in rss_urls_str.split(",")
+        if url.strip()
+    ]
+    wiki_url = f"{wiki_url_base.rstrip("/")}/{wiki_id}/"
 
     if not wiki_id:
         print("Error: WIKIWIKI_ID is not set")
@@ -62,18 +71,6 @@ def main():
     if not webhook_url:
         print("Error: DISCORD_WEBHOOK_URL is not set")
         return 2
-
-    page_names = [
-        name.strip() for name in page_names_str.split(",")
-        if name.strip()
-    ]
-
-    rss_urls = [
-        url.strip() for url in rss_urls_str.split(",")
-        if url.strip()
-    ]
-
-    wiki_url = f"{wiki_url_base.rstrip("/")}/{wiki_id}/"
 
     cfg = Config(
         wiki_id=wiki_id,

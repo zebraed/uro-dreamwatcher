@@ -46,6 +46,7 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           WIKIWIKI_PAGE_NAMES: ${{ vars.WIKIWIKI_PAGE_NAMES }}
           WIKIWIKI_AUTO_TRACK_PATTERNS: ${{ vars.WIKIWIKI_AUTO_TRACK_PATTERNS }}
+          WIKIWIKI_DIFF_FULL_PAGES: ${{ vars.WIKIWIKI_DIFF_FULL_PAGES }}
           STATE_PATH: ${{ vars.STATE_PATH }}
         run: python -m dreamwatcher.main
 
