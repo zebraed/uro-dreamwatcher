@@ -75,7 +75,12 @@ def _normalize_diff_line(content: str) -> Optional[str]:
     filtered = re.sub(r"^\*+\s*", "", filtered)
     # cleanup
     filtered = filtered.strip()
-    return filtered if filtered else None
+    # unicodedash only line is not a content
+    if not filtered or re.fullmatch(
+        r"[\s\-–—−‐‑‒―⁃⁻₋﹘﹣－]*", filtered
+    ):
+        return None
+    return filtered
 
 
 def _parse_diff(
