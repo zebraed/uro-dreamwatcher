@@ -275,6 +275,8 @@ def get_display_diff(
 
     diff_lines = raw_diff.split("\n")
     removed_lines, added_lines = _parse_diff(diff_lines)
+    if not added_lines:
+        return None
     if apply_sequence_match:
         unique_added = _sequence_match(removed_lines, added_lines)
     else:
