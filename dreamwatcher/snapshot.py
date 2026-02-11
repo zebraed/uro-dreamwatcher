@@ -31,6 +31,8 @@ def _normalize_diff_line(content: str) -> Optional[str]:
     # Skip empty lines
     if not content.strip():
         return None
+    # Strip list markers
+    content = re.sub(r"^\s*(-\s*)+", "", content)
     # Skip comment lines
     if content.lstrip().startswith("//"):
         return None
@@ -42,6 +44,9 @@ def _normalize_diff_line(content: str) -> Optional[str]:
         return None
     # Skip lines starting with #
     if content.lstrip().startswith("#"):
+        return None
+    # Skip lines starting with & (inline plugin/macro)
+    if content.lstrip().startswith("&"):
         return None
 
     # Convert wiki emphasis markers
@@ -62,12 +67,6 @@ def _normalize_diff_line(content: str) -> Optional[str]:
     filtered = re.sub(r"\{([^}]*)\}", r"\1", filtered)
     # anchors
     filtered = re.sub(r"\s*\[#[^\]]+\]", "", filtered)
-    # bullets
-    stripped = filtered.lstrip()
-    if stripped.startswith("--"):
-        filtered = re.sub(r"^\s*--\s*", "", filtered)
-    elif stripped.startswith("-"):
-        filtered = re.sub(r"^\s*-\s*", "", filtered)
     # &br() and &br;
     filtered = re.sub(r"&br\(\)", "", filtered)
     filtered = re.sub(r"&br;", "", filtered)
