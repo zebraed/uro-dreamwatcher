@@ -287,7 +287,7 @@ def _check_monitored_pages(
                                     evt_snap,
                                     full_diff_page_names=cfg.diff_full_pages,
                                 )
-                        if diff_prev:
+                        if event.is_initial or diff_prev:
                             evt = Event(
                                 title=event.title,
                                 url=event.url,
@@ -823,11 +823,9 @@ def run(cfg: Config) -> int:
         snapshots.update(updated_snapshots)
         save_snapshots(snapshots_path, snapshots)
 
-    if not events_to_send:
-        return 0
-
-    client = WebhookClient(cfg.discord_webhook_url)
-    client.send_events(events_to_send, header="")
+    if events_to_send:
+        client = WebhookClient(cfg.discord_webhook_url)
+        client.send_events(events_to_send, header="")
 
     updated_seen = state.seen.copy()
     for event in events_to_send:
