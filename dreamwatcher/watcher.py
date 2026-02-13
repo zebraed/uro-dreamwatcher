@@ -483,6 +483,21 @@ def get_recent_changes_updates(
                         is_initial=False
                     )
                     events.append(tracked_event)
+
+        new_pages = [
+            p for p in all_monitored_pages
+            if f"content_{p}" not in state.content_hashes
+        ]
+        if new_pages:
+            _check_monitored_pages(
+                new_pages,
+                client,
+                state,
+                cfg,
+                snapshots,
+                updated_snapshots,
+                events
+            )
     except (OSError, ValueError, TimeoutError) as e:
         print(f"Error getting page 'RecentChanges': {e}")
 
@@ -826,6 +841,9 @@ def run(cfg: Config) -> int:
     if events_to_send:
         client = WebhookClient(cfg.discord_webhook_url)
         client.send_events(events_to_send, header="")
+
+    if not (events_to_send or updated_snapshots):
+        return 0
 
     updated_seen = state.seen.copy()
     for event in events_to_send:
