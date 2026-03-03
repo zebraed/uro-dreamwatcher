@@ -7,7 +7,7 @@ from typing import Optional
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from dreamwatcher.snapshot import _normalize_diff_line
-
+# test
 
 def eq(content: str, expected: Optional[str]) -> None:
     got = _normalize_diff_line(content)
