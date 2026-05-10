@@ -96,11 +96,13 @@ def _parse_diff(
     """
     removed: list[str] = []
     added: list[str] = []
+    in_hunk = False
     for line in diff_lines:
-        # Skip header lines
-        if line.startswith("+++"):
+        # Parse only hunk body lines.
+        if line.startswith("@@"):
+            in_hunk = True
             continue
-        if line.startswith("---"):
+        if not in_hunk:
             continue
         if line.startswith("-"):
             content = line[1:].rstrip("\n")
@@ -121,6 +123,17 @@ def _sequence_match(
     added_lines: list[str],
     threshold: float = EDIT_SIMILARITY_THRESHOLD,
 ) -> list[str]:
+    """
+    Sequence match for added lines with removed lines.
+
+    Args:
+        removed_lines: List of removed lines.
+        added_lines: List of added lines.
+        threshold: Similarity threshold.
+
+    Returns:
+        list[str]: List of added lines that are not similar to removed lines.
+    """
     if not removed_lines:
         return list(added_lines)
     result: list[str] = []
