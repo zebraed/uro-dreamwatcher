@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
