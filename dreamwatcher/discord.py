@@ -1,3 +1,6 @@
+"""
+Discord webhook client.
+"""
 from dataclasses import dataclass
 from typing import Iterable, Optional
 from datetime import datetime

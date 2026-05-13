@@ -1,3 +1,8 @@
+"""
+Emoji constants.
+"""
+
+
 class Emoji:
     new = "🆕"
     update = "🔔"

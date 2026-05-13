@@ -1,3 +1,8 @@
+"""
+Snapshot of page content.
+
+provides functions to load, save, and update page snapshots.
+"""
 import json
 import re
 from dataclasses import dataclass

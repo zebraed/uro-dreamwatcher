@@ -1,3 +1,6 @@
+"""
+State for tracking seen items and content changes.
+"""
 import json
 from dataclasses import dataclass, field
 from pathlib import Path

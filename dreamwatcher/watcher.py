@@ -1,3 +1,6 @@
+"""
+Watcher for monitoring wiki pages.
+"""
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from pathlib import Path

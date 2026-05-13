@@ -1,3 +1,6 @@
+"""
+Wikiwiki client.
+"""
 from dataclasses import dataclass, field
 from importlib.metadata import packages_distributions
 from pathlib import Path
