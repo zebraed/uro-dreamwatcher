@@ -1,6 +1,7 @@
 """
 Wikiwiki client.
 """
+import logging
 from dataclasses import dataclass, field
 from importlib.metadata import packages_distributions
 from pathlib import Path
@@ -8,9 +9,12 @@ from typing import Any, Dict, Optional
 from urllib.parse import quote
 import requests
 from requests.adapters import HTTPAdapter
+
 from urllib3.util.retry import Retry
 
 from .types import SecretStr
+
+logger = logging.getLogger(__name__)
 
 
 def _project_name() -> str:
@@ -74,7 +78,7 @@ class WikiClient:
         self._token: Optional[SecretStr] = None
 
         self.project_name = _project_name()
-        print(f"User-Agent: {self.project_name}")
+        logger.debug("User-Agent: %s", self.project_name)
 
     def list_pages(self) -> Dict[str, Any]:
         """

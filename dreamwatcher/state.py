@@ -2,10 +2,13 @@
 State for tracking seen items and content changes.
 """
 import json
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 import hashlib
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -54,7 +57,7 @@ def load_state(path: Path) -> State:
             dynamic_monitored_pages=set(dynamic_monitored_pages_list)
         )
     except (OSError, ValueError, json.JSONDecodeError) as e:
-        print(f"Error loading state from {path}: {e}")
+        logger.error("Error loading state from %s: %s", path, e)
         return State(
             seen={}, updated_at=None, content_hashes={},
             dynamic_monitored_pages=set()

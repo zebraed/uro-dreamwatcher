@@ -1,13 +1,17 @@
 """
 Main entry point.
 """
+import logging
 import os
 from pathlib import Path
 
 from dotenv import load_dotenv
 
+from .log import setup_logging
 from .watcher import Config, run
 from .types import SecretStr
+
+logger = logging.getLogger(__name__)
 
 
 def main():
@@ -18,8 +22,8 @@ def main():
     Returns:
         int: Exit code.
     """
-    # Load environment variables from .env file
     load_dotenv()
+    setup_logging()
 
     wiki_id = os.environ.get("WIKIWIKI_ID", "").strip()
     wiki_url_base = os.environ.get("WIKIWIKI_URL_BASE", "").strip()
@@ -59,19 +63,19 @@ def main():
     wiki_url = f"{wiki_url_base.rstrip("/")}/{wiki_id}/"
 
     if not wiki_id:
-        print("Error: WIKIWIKI_ID is not set")
+        logger.error("WIKIWIKI_ID is not set")
         return 2
     if not wiki_url_base:
-        print("Error: WIKIWIKI_URL_BASE is not set")
+        logger.error("WIKIWIKI_URL_BASE is not set")
         return 2
     if not api_key_id:
-        print("Error: WIKIWIKI_API_KEY_ID is not set")
+        logger.error("WIKIWIKI_API_KEY_ID is not set")
         return 2
     if not api_secret:
-        print("Error: WIKIWIKI_API_SECRET is not set")
+        logger.error("WIKIWIKI_API_SECRET is not set")
         return 2
     if not webhook_url:
-        print("Error: DISCORD_WEBHOOK_URL is not set")
+        logger.error("DISCORD_WEBHOOK_URL is not set")
         return 2
 
     cfg = Config(

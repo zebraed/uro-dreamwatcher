@@ -1,6 +1,7 @@
 """
 Watcher for monitoring wiki pages.
 """
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -23,6 +24,7 @@ from .snapshot import (
 )
 from .types import SecretStr
 
+logger = logging.getLogger(__name__)
 
 MAX_WORKERS = 8
 _PAGE_LINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
@@ -209,7 +211,7 @@ def _auto_track_matching_pages(
                     state.seen[page_key] = page_date
                 auto_tracked_pages.append(page_name)
         except (OSError, ValueError, TimeoutError) as e:
-            print(f"Error checking page '{page_name}': {e}")
+            logger.error("Error checking page '%s': %s", page_name, e)
 
     return auto_tracked_pages
 
@@ -304,7 +306,7 @@ def _check_monitored_pages(
                     ValueError,
                     TimeoutError
                 ) as e:
-                    print(f"Error getting page '{p_name}': {e}")
+                    logger.error("Error getting page '%s': %s", p_name, e)
 
         except FuturesTimeoutError:
             for future in futures:
@@ -316,9 +318,10 @@ def _check_monitored_pages(
             ]
             if pending_pages:
                 num = len(pending_pages)
-                print(
+                logger.warning(
                     "Timeout while fetching monitored pages; "
-                    f"cancelled {num} pending request(s): {pending_pages}"
+                    "cancelled %d pending request(s): %s",
+                    num, pending_pages
                 )
 
 
@@ -501,7 +504,7 @@ def get_recent_changes_updates(
                 events
             )
     except (OSError, ValueError, TimeoutError) as e:
-        print(f"Error getting page 'RecentChanges': {e}")
+        logger.error("Error getting page 'RecentChanges': %s", e)
 
     return events
 
@@ -551,9 +554,9 @@ def _process_initial_pages(
                 except (
                     OSError, ValueError, TimeoutError
                 ) as e:
-                    print(
-                        f"Error checking page "
-                        f"'{created_page_name}': {e}"
+                    logger.error(
+                        "Error checking page '%s': %s",
+                        created_page_name, e
                     )
 
     if auto_tracked_pages:
@@ -688,7 +691,7 @@ def get_recent_created_updates(
                 client, events
             )
     except (OSError, ValueError, TimeoutError) as e:
-        print(f"Error getting page 'RecentCreated': {e}")
+        logger.error("Error getting page 'RecentCreated': %s", e)
 
     return events
 
@@ -835,6 +838,19 @@ def run(cfg: Config) -> int:
         cfg, state, wiki_client, snapshots, updated_snapshots
     )
     events_to_send.extend(recent_created_events)
+
+    updated_pages = [
+        name for name in updated_snapshots
+        if name not in ("RecentChanges", "RecentCreated")
+    ]
+    if updated_pages:
+        logger.info(
+            "Updated pages: %d件 (%s)",
+            len(updated_pages),
+            ", ".join(updated_pages),
+        )
+    else:
+        logger.info("No page updates found")
 
     if updated_snapshots:
         snapshots.update(updated_snapshots)

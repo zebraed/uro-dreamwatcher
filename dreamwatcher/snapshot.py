@@ -3,12 +3,15 @@ Snapshot of page content.
 
 provides functions to load, save, and update page snapshots.
 """
+import difflib
 import json
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional
-import difflib
+
+logger = logging.getLogger(__name__)
 
 EDIT_SIMILARITY_THRESHOLD = 0.9
 
@@ -331,7 +334,7 @@ def load_snapshots(path: Path) -> dict[str, PageSnapshot]:
             )
         return snapshots
     except (OSError, ValueError, json.JSONDecodeError) as e:
-        print(f"Error loading snapshots: {e}")
+        logger.error("Error loading snapshots: %s", e)
         return {}
 
 
@@ -384,6 +387,10 @@ def update_snapshot(
         if previous_content
         else None
     )
+
+    if diff:
+        display = get_display_diff(diff) or diff
+        logger.info("Diff detected for '%s':\n%s", page_name, display)
 
     return PageSnapshot(
         page_name=page_name,
