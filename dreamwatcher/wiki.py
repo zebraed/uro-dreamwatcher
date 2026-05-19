@@ -14,6 +14,12 @@ from .types import SecretStr
 
 
 def _project_name() -> str:
+    """
+    Get the project name.
+
+    Returns:
+        str: project name.
+    """
     pkg = (__package__ or "").split(".", maxsplit=1)[0]
     dists = packages_distributions().get(pkg, [])
     if dists:
@@ -69,7 +75,6 @@ class WikiClient:
 
         self.project_name = _project_name()
         print(f"User-Agent: {self.project_name}")
-
 
     def list_pages(self) -> Dict[str, Any]:
         """
